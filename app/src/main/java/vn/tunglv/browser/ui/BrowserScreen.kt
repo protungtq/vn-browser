@@ -295,7 +295,7 @@ private fun BrowserMainScreen(
                         .heightIn(min = 54.dp)
                         .background(if (addressFocused) colors.surface else colors.surfaceContainerLow, fieldShape)
                         .border(1.dp, if (addressFocused) colors.primary else colors.outlineVariant, fieldShape)
-                        .padding(start = 14.dp, end = 4.dp),
+                        .padding(start = 16.dp, end = 4.dp),
                 ) {
                     Icon(
                         if (isWebPage && !addressFocused && tabUrl.startsWith("https://")) {
@@ -307,8 +307,8 @@ private fun BrowserMainScreen(
                         modifier = Modifier.size(20.dp),
                         tint = if (addressFocused) colors.primary else colors.onSurfaceVariant,
                     )
-                    Spacer(Modifier.width(10.dp))
-                    Box(Modifier.weight(1f).padding(vertical = 10.dp)) {
+                    Spacer(Modifier.width(8.dp))
+                    Box(Modifier.weight(1f).padding(vertical = 8.dp)) {
                         if (addressText.text.isEmpty()) {
                             Text(
                                 if (tabIsStartPage) "Tìm với ${engine.name}" else "Tìm kiếm hoặc nhập địa chỉ",
@@ -356,8 +356,8 @@ private fun BrowserMainScreen(
                             .padding(
                                 start = 12.dp,
                                 end = if (isWebPage && !addressFocused) 4.dp else 12.dp,
-                                top = 6.dp,
-                                bottom = 6.dp,
+                                top = 8.dp,
+                                bottom = 8.dp,
                             ),
                     ) {
                         addressField(Modifier.weight(1f))
@@ -573,11 +573,11 @@ private fun BottomBarButton(
             .clip(RoundedCornerShape(14.dp))
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .semantics { contentDescription = description }
-            .padding(vertical = 3.dp),
+            .padding(vertical = 4.dp),
     ) {
         Box(
             modifier = Modifier
-                .size(width = 46.dp, height = 29.dp)
+                .size(width = 46.dp, height = 32.dp)
                 .background(if (active) colors.primaryContainer else Color.Transparent, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center,
         ) {
@@ -600,7 +600,7 @@ private fun BottomBarButton(
         }
         Text(
             label,
-            style = MaterialTheme.typography.labelSmall,
+            style = MaterialTheme.typography.labelMedium,
             color = tint,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -696,7 +696,11 @@ private fun CrashReportDialog(report: String, onClose: () -> Unit) {
     Dialog(onDismissRequest = onClose) {
         Card {
             Column(Modifier.padding(16.dp)) {
-                Text("App gặp lỗi lần mở trước", fontWeight = FontWeight.Bold)
+                Text(
+                    "App gặp lỗi lần mở trước",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                )
                 Spacer(Modifier.height(8.dp))
                 Text(
                     "Lần mở trước, app tự đóng vì lỗi. Chi tiết ở dưới — " +

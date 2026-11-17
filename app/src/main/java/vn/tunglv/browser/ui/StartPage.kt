@@ -76,7 +76,7 @@ internal fun StartPage(
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 18.dp),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 18.dp),
                 ) {
                     if (showShortcuts) {
                         Image(
@@ -97,7 +97,7 @@ internal fun StartPage(
                 }
             }
             if (showShortcuts) {
-                Spacer(Modifier.height(22.dp))
+                Spacer(Modifier.height(24.dp))
                 Text(
                     "Truy cập nhanh",
                     style = MaterialTheme.typography.titleMedium,
@@ -109,7 +109,7 @@ internal fun StartPage(
                 for (row in shortcuts.chunked(4)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         for (shortcut in row) {
                             ShortcutTile(shortcut, { onOpen(shortcut.url) }, Modifier.weight(1f))
@@ -144,7 +144,7 @@ private fun ShortcutTile(shortcut: Shortcut, onClick: () -> Unit, modifier: Modi
                 Text(shortcut.mark, color = Color.White, style = MaterialTheme.typography.titleLarge)
             }
         }
-        Spacer(Modifier.height(5.dp))
+        Spacer(Modifier.height(4.dp))
         Text(
             shortcut.title,
             style = MaterialTheme.typography.labelMedium,

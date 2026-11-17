@@ -10,6 +10,7 @@ import android.os.Environment
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -273,7 +275,11 @@ fun DownloadSheet(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
-            Text("Tải media của trang này", fontWeight = FontWeight.Bold)
+            Text(
+                "Tải media của trang này",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
             Spacer(Modifier.height(12.dp))
             if (orderedCaptures.isNotEmpty()) {
                 Text("Link bắt được từ trang:", fontWeight = FontWeight.SemiBold)
@@ -338,16 +344,24 @@ fun DownloadSheet(
                         Text(
                             errorMessage ?: "Không quét được link này.",
                             style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
                         )
                         Spacer(Modifier.height(12.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = { scope.launch { runScan() } }) { Text("Thử lại") }
-                            OutlinedButton(onClick = onClose) { Text("Đóng") }
+                            Button(
+                                onClick = { scope.launch { runScan() } },
+                                modifier = Modifier.heightIn(min = 48.dp),
+                            ) { Text("Thử lại") }
+                            OutlinedButton(
+                                onClick = onClose,
+                                modifier = Modifier.heightIn(min = 48.dp),
+                            ) { Text("Đóng") }
                         }
                     } else {
                         Text(
                             errorMessage ?: "Không quét được link này.",
                             style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
                         )
                         TextButton(onClick = { scope.launch { runScan() } }) {
                             Text("Thử quét lại")
@@ -364,6 +378,10 @@ fun DownloadSheet(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .aspectRatio(16f / 9f)
+                                    .background(
+                                        MaterialTheme.colorScheme.surfaceContainerLow,
+                                        RoundedCornerShape(8.dp),
+                                    )
                                     .clip(RoundedCornerShape(8.dp)),
                             )
                             Spacer(Modifier.height(12.dp))
@@ -437,12 +455,12 @@ fun DownloadSheet(
                 Spacer(Modifier.height(12.dp))
                 OutlinedButton(
                     onClick = onClose,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 ) { Text("Đóng (vẫn tải nền)") }
             } else if (hasChoice) {
                 Button(
                     onClick = { tryStartDownload() },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 ) { Text("Tải về") }
                 download.statusText?.let { status ->
                     Spacer(Modifier.height(8.dp))

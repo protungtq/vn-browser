@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -44,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.yausername.youtubedl_android.YoutubeDL
@@ -166,7 +169,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { SettingsStore.update(themeMode = mode) }
-                        .padding(vertical = 6.dp),
+                        .padding(vertical = 8.dp),
                 ) {
                     RadioButton(
                         selected = settings.themeMode == mode,
@@ -180,9 +183,19 @@ fun SettingsScreen(onBack: () -> Unit) {
             Spacer(Modifier.height(24.dp))
             SectionTitle("Chặn quảng cáo")
             Spacer(Modifier.height(8.dp))
+            // Cả hàng đều bấm được để bật/tắt, không chỉ mỗi công tắc.
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .toggleable(
+                        value = settings.adBlockEnabled,
+                        onValueChange = { checked ->
+                            SettingsStore.update(adBlockEnabled = checked)
+                        },
+                        role = Role.Switch,
+                    ),
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Bật chặn quảng cáo")
@@ -193,9 +206,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }
                 Switch(
                     checked = settings.adBlockEnabled,
-                    onCheckedChange = { checked ->
-                        SettingsStore.update(adBlockEnabled = checked)
-                    },
+                    onCheckedChange = null,
                 )
             }
             Spacer(Modifier.height(8.dp))
@@ -208,6 +219,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                         Toast.LENGTH_SHORT,
                     ).show()
                 },
+                modifier = Modifier.heightIn(min = 48.dp),
             ) { Text("Kiểm tra bộ lọc mới") }
             Text(
                 "Bộ lọc: FMSF 2.0, ABPVN, AdGuard Mobile Ads, EasyList. " +
@@ -231,7 +243,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                         .clickable {
                             SettingsStore.update(searchEngineId = engine.id)
                         }
-                        .padding(vertical = 6.dp),
+                        .padding(vertical = 8.dp),
                 ) {
                     RadioButton(
                         selected = settings.searchEngineId == engine.id,
@@ -252,9 +264,13 @@ fun SettingsScreen(onBack: () -> Unit) {
                             .format(Date())
                         exportLauncher.launch("vn-browser-backup-$stamp.json")
                     },
+                    modifier = Modifier.heightIn(min = 48.dp),
                 ) { Text("Xuất file sao lưu") }
                 Spacer(Modifier.width(8.dp))
-                OutlinedButton(onClick = { importLauncher.launch(arrayOf("application/json")) }) {
+                OutlinedButton(
+                    onClick = { importLauncher.launch(arrayOf("application/json")) },
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) {
                     Text("Khôi phục từ file")
                 }
             }
@@ -272,11 +288,17 @@ fun SettingsScreen(onBack: () -> Unit) {
             SectionTitle("Dữ liệu")
             Spacer(Modifier.height(8.dp))
             Row {
-                OutlinedButton(onClick = { confirmClearHistory = true }) {
+                OutlinedButton(
+                    onClick = { confirmClearHistory = true },
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) {
                     Text("Xóa lịch sử")
                 }
                 Spacer(Modifier.width(8.dp))
-                OutlinedButton(onClick = { confirmClearBookmarks = true }) {
+                OutlinedButton(
+                    onClick = { confirmClearBookmarks = true },
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) {
                     Text("Xóa dấu trang")
                 }
             }
@@ -292,6 +314,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                         Toast.LENGTH_SHORT,
                     ).show()
                 },
+                modifier = Modifier.heightIn(min = 48.dp),
             ) { Text("Xóa cookie") }
 
             Spacer(Modifier.height(24.dp))
@@ -329,6 +352,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     }
                 },
                 enabled = !updatingEngine,
+                modifier = Modifier.heightIn(min = 48.dp),
             ) { Text(if (updatingEngine) "Đang cập nhật…" else "Cập nhật bộ quét") }
             if (engineMessage.isNotBlank()) {
                 Spacer(Modifier.height(8.dp))
@@ -367,7 +391,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     TextButton(onClick = {
                         HistoryStore.clear()
                         confirmClearHistory = false
-                    }) { Text("Xóa hết") }
+                    }) { Text("Xóa hết", color = MaterialTheme.colorScheme.error) }
                 },
                 dismissButton = {
                     TextButton(onClick = { confirmClearHistory = false }) { Text("Giữ lại") }
@@ -383,7 +407,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     TextButton(onClick = {
                         BookmarkStore.clear()
                         confirmClearBookmarks = false
-                    }) { Text("Xóa hết") }
+                    }) { Text("Xóa hết", color = MaterialTheme.colorScheme.error) }
                 },
                 dismissButton = {
                     TextButton(onClick = { confirmClearBookmarks = false }) { Text("Giữ lại") }

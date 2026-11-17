@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -48,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import vn.tunglv.browser.web.TabSession
@@ -81,14 +83,14 @@ fun TabSwitcherScreen(
                         Text("Đóng tất cả")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.background),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.surfaceContainerLow),
             )
         },
         bottomBar = {
             Surface(color = colors.background) {
                 Button(
                     onClick = onNewTab,
-                    modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp),
+                    modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp).heightIn(min = 48.dp),
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null)
                     Spacer(Modifier.size(8.dp))
@@ -99,15 +101,38 @@ fun TabSwitcherScreen(
     ) { innerPadding ->
         if (tabs.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
-                Text("Không có tab nào đang mở.")
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(horizontal = 32.dp),
+                ) {
+                    Icon(
+                        Icons.Outlined.Home,
+                        contentDescription = null,
+                        tint = colors.onSurfaceVariant,
+                        modifier = Modifier.size(48.dp),
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        "Không có tab nào đang mở.",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Bấm nút Mở tab mới ở dưới để bắt đầu duyệt web.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                }
             }
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(minSize = 144.dp),
                 modifier = Modifier.fillMaxSize().padding(innerPadding),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(tabs, key = { it.id }) { tab ->
                     TabCard(tab, tab.id == activeTabId, onSelect, onClose)
@@ -127,7 +152,7 @@ fun TabSwitcherScreen(
                 TextButton(onClick = {
                     showCloseDialog = false
                     onCloseAll()
-                }) { Text("Đóng tất cả") }
+                }) { Text("Đóng tất cả", color = colors.error) }
             },
         )
     }
