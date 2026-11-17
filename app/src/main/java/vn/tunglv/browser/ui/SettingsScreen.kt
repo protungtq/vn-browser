@@ -34,6 +34,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,6 +59,7 @@ import vn.tunglv.browser.data.BookmarkStore
 import vn.tunglv.browser.data.HistoryStore
 import vn.tunglv.browser.data.SEARCH_ENGINES
 import vn.tunglv.browser.data.SettingsStore
+import vn.tunglv.browser.dl.MediaDownload
 import vn.tunglv.browser.filter.FilterStore
 
 /** Màn hình cài đặt: chặn quảng cáo, tìm kiếm, sao lưu, xóa dữ liệu. */
@@ -70,9 +72,22 @@ fun SettingsScreen(onBack: () -> Unit) {
     val blockedCount by FilterStore.blockedCount.collectAsState()
     var backupMessage by remember { mutableStateOf("") }
     var engineMessage by remember { mutableStateOf("") }
+    var engineVersion by remember { mutableStateOf<String?>(null) }
     var updatingEngine by remember { mutableStateOf(false) }
     var confirmClearHistory by remember { mutableStateOf(false) }
     var confirmClearBookmarks by remember { mutableStateOf(false) }
+
+    // Hiện phiên bản bộ quét (yt-dlp) đang dùng, để biết máy đã có bản vá
+    // CVE-2026-50574 (từ 2026.06.09) hay chưa sau khi bấm cập nhật.
+    LaunchedEffect(Unit) {
+        engineVersion = withContext(Dispatchers.IO) {
+            try {
+                YoutubeDL.getInstance().version(context.applicationContext)
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json"),
@@ -270,6 +285,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 onClick = {
                     CookieManager.getInstance().removeAllCookies(null)
                     CookieManager.getInstance().flush()
+                    MediaDownload.deleteCookieFile(context)
                     Toast.makeText(
                         context,
                         "Đã xóa cookie. Các trang đã đăng nhập sẽ phải đăng nhập lại.",
@@ -299,6 +315,11 @@ fun SettingsScreen(onBack: () -> Unit) {
                                 } else {
                                     "Bộ quét đã lên bản mới nhất."
                                 }
+                            engineVersion = try {
+                                YoutubeDL.getInstance().version(context.applicationContext)
+                            } catch (_: Exception) {
+                                null
+                            }
                         } catch (e: Exception) {
                             engineMessage =
                                 "Cập nhật bộ quét thất bại: ${e.message ?: "lỗi không rõ"}"
@@ -313,6 +334,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                 Spacer(Modifier.height(8.dp))
                 Text(engineMessage, style = MaterialTheme.typography.bodySmall)
             }
+            Text(
+                "Bộ quét đang dùng: ${engineVersion ?: "chưa xác định được"}.",
+                style = MaterialTheme.typography.bodySmall,
+            )
             Text(
                 "Bộ quét (yt-dlp) cần bản mới để theo kịp thay đổi của các trang video.",
                 style = MaterialTheme.typography.bodySmall,

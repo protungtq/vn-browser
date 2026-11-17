@@ -127,13 +127,18 @@ fun DownloadSheet(
         scanState = ScanState.SCANNING
         try {
             val cookieFile = MediaDownload.writeCookieFile(context, pageUrl, cookieString)
-            val result = MediaDownload.fetchInfo(pageUrl, cookieFile)
-            scanned = result
-            // Chỉ chọn sẵn kết quả quét khi chưa có link bắt được.
-            if (selectedCapture == null) {
-                selected = result.options.firstOrNull()
+            try {
+                val result = MediaDownload.fetchInfo(pageUrl, cookieFile)
+                scanned = result
+                // Chỉ chọn sẵn kết quả quét khi chưa có link bắt được.
+                if (selectedCapture == null) {
+                    selected = result.options.firstOrNull()
+                }
+                scanState = ScanState.READY
+            } finally {
+                // Xóa file cookie tạm ngay sau lượt quét, khỏi nằm lại trong máy.
+                MediaDownload.deleteCookieFile(context)
             }
-            scanState = ScanState.READY
         } catch (e: Exception) {
             errorMessage = e.message ?: "Không quét được link này."
             scanState = ScanState.FAILED

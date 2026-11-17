@@ -40,7 +40,7 @@ tab, lịch sử và dấu trang).
 ## Bộ máy
 
 - Kotlin + Jetpack Compose (Material 3), minSdk 26 (Android 8.0+).
-- Bộ máy tải media (youtubedl-android 0.18.1: yt-dlp + FFmpeg + aria2c),
+- Bộ máy tải media (youtubedl-android 0.18.1: yt-dlp + FFmpeg),
   dùng chung với app VDM.
 
 ## Build
