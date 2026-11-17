@@ -55,6 +55,12 @@ class TabSession(
     val canGoForward = mutableStateOf(false)
     val isStartPage = mutableStateOf(startUrl == HOME_URL)
 
+    /**
+     * Thanh địa chỉ và thanh điều hướng có đang ẩn vì người dùng cuộn
+     * trang xuống không. Cuộn ngược lên thì hiện lại.
+     */
+    val barsHidden = mutableStateOf(false)
+
     /** Link media bắt được từ request mạng của trang đang mở. */
     val capturedMedia = mutableStateListOf<CapturedMedia>()
 
@@ -256,7 +262,7 @@ class TabManager(
                 START_PAGE_HTML,
                 "text/html",
                 "utf-8",
-                null,
+                HOME_BASE_URL,
             )
         } catch (_: Throwable) {
             // Trang chủ tự dựng nạp lỗi thì mở Google cho khỏi trắng trang.
@@ -272,6 +278,19 @@ class TabManager(
         webView.settings.domStorageEnabled = true
         // Giả dạng Chrome trên điện thoại để các trang trả bản đầy đủ.
         webView.settings.userAgentString = CHROME_UA
+        // Cuộn trang xuống thì ẩn 2 thanh cho trang toàn màn hình, cuộn
+        // ngược lên thì hiện lại. Ngưỡng nhỏ để không nhấp nháy khi chạm nhẹ.
+        val hideThresholdPx = (8 * webView.resources.displayMetrics.density).toInt().coerceAtLeast(1)
+        webView.setOnScrollChangeListener { _, _, scrollY, _, oldScrollY ->
+            val dy = scrollY - oldScrollY
+            if (scrollY <= 0) {
+                session.barsHidden.value = false
+            } else if (dy >= hideThresholdPx) {
+                session.barsHidden.value = true
+            } else if (dy <= -hideThresholdPx) {
+                session.barsHidden.value = false
+            }
+        }
         webView.webViewClient = object : SafeWebViewClient() {
             override fun shouldInterceptRequest(
                 view: WebView,
@@ -326,6 +345,8 @@ class TabManager(
             ) {
                 super.onPageStarted(view, url, favicon)
                 session.progress.intValue = 0
+                // Sang trang mới thì hiện lại 2 thanh.
+                session.barsHidden.value = false
                 if (url == null) return
                 if (url == HOME_BASE_URL || url.startsWith("data:")) {
                     session.isStartPage.value = true
@@ -361,9 +382,10 @@ class TabManager(
                 session.canGoForward.value = view.canGoForward()
                 // Trang tự đổi địa chỉ không tải lại (vd lướt Shorts): cập nhật
                 // địa chỉ tab và bỏ link media của trang cũ.
-                if (url != null &&
-                    (url.startsWith("http://") || url.startsWith("https://"))
-                ) {
+                if (url == HOME_BASE_URL || url?.startsWith("data:") == true) {
+                    session.isStartPage.value = true
+                    session.url.value = ""
+                } else if (url != null && (url.startsWith("http://") || url.startsWith("https://"))) {
                     val clean = url.substringBefore("#")
                     if (clean != session.url.value.substringBefore("#") &&
                         !session.isStartPage.value
@@ -489,60 +511,5 @@ private val AD_HOST_MARKERS = listOf(
     "analytics",
 )
 
-/** Trang chủ tự dựng: ô tìm kiếm và lối tắt tới các trang hay dùng. */
-private const val START_PAGE_HTML = """
-<!DOCTYPE html>
-<html lang="vi"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>VN Browser</title>
-<style>
-*{box-sizing:border-box}
-body{font-family:sans-serif;background:#fafaf8;color:#1c1b1a;margin:0;padding:28px 20px 32px}
-.head{display:flex;align-items:center;gap:12px;margin:0 0 6px}
-.logo{width:48px;height:48px;border-radius:16px;background:#DC2626;color:#fff;
-  display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:800}
-h1{color:#DC2626;font-size:26px;margin:0;line-height:1.1}
-p{color:#6b6660;font-size:14px;margin:0 0 22px}
-form{display:flex;gap:8px;margin:0 0 24px}
-input{flex:1;min-width:0;padding:13px 18px;border:1px solid #e5e1dc;border-radius:999px;
-  font-size:15px;background:#fff;color:#1c1b1a;outline:none;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-input:focus{border-color:#DC2626}
-button{padding:13px 20px;border:0;border-radius:999px;background:#DC2626;color:#fff;
-  font-size:15px;font-weight:700}
-.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px 8px}
-a{display:flex;flex-direction:column;align-items:center;gap:8px;text-decoration:none;
-  color:#1c1b1a;font-weight:600;font-size:13px;text-align:center}
-a i{width:56px;height:56px;border-radius:18px;display:flex;align-items:center;
-  justify-content:center;font-style:normal;font-size:24px;font-weight:800;color:#fff}
-.g{background:#4285F4}.y{background:#FF0000}.f{background:#1877F2}.t{background:#111}
-.z{background:#0068FF}.ig{background:#E1306C}.s{background:#EE4D2D}.l{background:#0F156D}
-.vn{background:#D71920}.tt{background:#B71C1C}.w{background:#333}.m{background:#EA4335}
-@media (prefers-color-scheme:dark){
-body{background:#131211;color:#f5f2ef}
-p{color:#a8a29b}
-input{background:#262421;border-color:#38342f;color:#f5f2ef}
-a{color:#f5f2ef}
-.t,.w{background:#333}
-}
-</style></head><body>
-<div class="head"><div class="logo">V</div><h1>VN Browser</h1></div>
-<p>Đã bật chặn quảng cáo. Gõ từ khóa để tìm, hoặc mở nhanh một trang dưới đây.</p>
-<form action="https://www.google.com/search" method="get">
-<input type="search" name="q" placeholder="Tìm kiếm…">
-<button type="submit">Tìm</button>
-</form>
-<div class="grid">
-<a href="https://www.google.com"><i class="g">G</i>Google</a>
-<a href="https://m.youtube.com"><i class="y">▶</i>YouTube</a>
-<a href="https://m.facebook.com"><i class="f">f</i>Facebook</a>
-<a href="https://www.tiktok.com"><i class="t">♪</i>TikTok</a>
-<a href="https://zalo.me"><i class="z">Z</i>Zalo</a>
-<a href="https://www.instagram.com"><i class="ig">◎</i>Instagram</a>
-<a href="https://shopee.vn"><i class="s">S</i>Shopee</a>
-<a href="https://www.lazada.vn"><i class="l">L</i>Lazada</a>
-<a href="https://vnexpress.net"><i class="vn">V</i>VnExpress</a>
-<a href="https://tuoitre.vn"><i class="tt">T</i>Tuổi Trẻ</a>
-<a href="https://vi.wikipedia.org"><i class="w">W</i>Wikipedia</a>
-<a href="https://mail.google.com"><i class="m">M</i>Gmail</a>
-</div></body></html>
-"""
+// Giữ một mục trang chủ trong lịch sử WebView để Lùi/Tiến đi qua trang chủ.
+private const val START_PAGE_HTML = "<!doctype html><html lang=vi><title>VN Browser</title></html>"

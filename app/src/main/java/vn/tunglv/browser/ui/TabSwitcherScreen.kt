@@ -1,11 +1,13 @@
 package vn.tunglv.browser.ui
 
+import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,35 +16,42 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import vn.tunglv.browser.web.TabSession
 
-/** Màn hình xem và quản lý các tab đang mở. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TabSwitcherScreen(
@@ -54,147 +63,129 @@ fun TabSwitcherScreen(
     onCloseAll: () -> Unit,
     onBack: () -> Unit,
 ) {
+    var showCloseDialog by rememberSaveable { mutableStateOf(false) }
+    val colors = MaterialTheme.colorScheme
     BackHandler(onBack = onBack)
     Scaffold(
+        containerColor = colors.background,
         topBar = {
             TopAppBar(
-                title = { Text("Tab đang mở (${tabs.size})") },
+                title = { Text("${tabs.size} tab đang mở", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Quay lại")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Quay lại trình duyệt")
                     }
                 },
                 actions = {
-                    TextButton(onClick = onCloseAll) { Text("Đóng tất cả") }
+                    TextButton(onClick = { showCloseDialog = true }, enabled = tabs.isNotEmpty()) {
+                        Text("Đóng tất cả")
+                    }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                ),
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.background),
             )
         },
         bottomBar = {
-            Button(
-                onClick = onNewTab,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .padding(12.dp),
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Spacer(Modifier.size(8.dp))
-                Text("Mở tab mới")
+            Surface(color = colors.background) {
+                Button(
+                    onClick = onNewTab,
+                    modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp),
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null)
+                    Spacer(Modifier.size(8.dp))
+                    Text("Mở tab mới")
+                }
             }
         },
     ) { innerPadding ->
         if (tabs.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.Center,
-            ) {
+            Box(Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
                 Text("Không có tab nào đang mở.")
             }
-            return@Scaffold
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = 144.dp),
+                modifier = Modifier.fillMaxSize().padding(innerPadding),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                items(tabs, key = { it.id }) { tab ->
+                    TabCard(tab, tab.id == activeTabId, onSelect, onClose)
+                }
+            }
         }
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            items(tabs, key = { it.id }) { tab ->
-                val isStartPage = tab.isStartPage.value
-                val title = when {
-                    isStartPage -> "Trang chủ"
-                    tab.title.value.isNotBlank() -> tab.title.value
-                    tab.url.value.isNotBlank() -> tab.url.value
-                    else -> tab.startUrl
-                }
-                val subtitle = if (isStartPage) "Trang chủ VN Browser" else tab.url.value.ifBlank { tab.startUrl }
-                val isActive = tab.id == activeTabId
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onSelect(tab.id) },
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (isActive) {
-                            MaterialTheme.colorScheme.primaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.surfaceContainer
-                        },
+    }
+    if (showCloseDialog) {
+        AlertDialog(
+            onDismissRequest = { showCloseDialog = false },
+            title = { Text("Đóng tất cả tab?") },
+            text = { Text("Bạn sẽ quay về trang chủ trong một tab mới.") },
+            dismissButton = {
+                TextButton(onClick = { showCloseDialog = false }) { Text("Hủy") }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showCloseDialog = false
+                    onCloseAll()
+                }) { Text("Đóng tất cả") }
+            },
+        )
+    }
+}
+
+@Composable
+private fun TabCard(tab: TabSession, isActive: Boolean, onSelect: (Long) -> Unit, onClose: (Long) -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val isHome = tab.isStartPage.value
+    val url = tab.url.value.ifBlank { tab.startUrl }
+    val domain = if (isHome) "VN Browser" else Uri.parse(url).host?.removePrefix("www.") ?: url
+    val title = if (isHome) "Trang chủ" else tab.title.value.ifBlank { domain }
+    Surface(
+        onClick = { onSelect(tab.id) },
+        shape = RoundedCornerShape(20.dp),
+        color = if (isActive) colors.primaryContainer else colors.surface,
+        contentColor = if (isActive) colors.onPrimaryContainer else colors.onSurface,
+        border = BorderStroke(1.dp, if (isActive) colors.primary else colors.outlineVariant),
+        modifier = Modifier.semantics { selected = isActive },
+    ) {
+        Column(Modifier.padding(start = 12.dp, top = 4.dp, end = 4.dp, bottom = 12.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier.size(36.dp).background(
+                        if (isActive) colors.primary else colors.surfaceContainerHigh,
+                        RoundedCornerShape(12.dp),
                     ),
-                    border = if (isActive) {
-                        androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            MaterialTheme.colorScheme.primary,
-                        )
-                    } else {
-                        null
-                    },
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .background(
-                                    if (isActive) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.surfaceContainerHigh
-                                    },
-                                    CircleShape,
-                                ),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                Icons.Default.Language,
-                                contentDescription = null,
-                                modifier = Modifier.size(22.dp),
-                                tint = if (isActive) {
-                                    MaterialTheme.colorScheme.onPrimary
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                },
-                            )
-                        }
-                        Spacer(Modifier.size(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                title,
-                                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                subtitle,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            if (isActive) {
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    "Đang mở",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                            }
-                        }
-                        IconButton(onClick = { onClose(tab.id) }) {
-                            Icon(Icons.Default.Close, contentDescription = "Đóng tab")
-                        }
-                    }
+                    Icon(
+                        if (isHome) Icons.Outlined.Home else Icons.Outlined.Language,
+                        contentDescription = null,
+                        tint = if (isActive) colors.onPrimary else colors.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
                 }
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = { onClose(tab.id) }) {
+                    Icon(Icons.Default.Close, contentDescription = "Đóng tab $title", modifier = Modifier.size(20.dp))
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Column(Modifier.padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    minLines = 2,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    if (isActive) "Đang xem · $domain" else domain,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (isActive) colors.onPrimaryContainer else colors.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }

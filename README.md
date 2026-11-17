@@ -23,7 +23,7 @@ tab, lịch sử và dấu trang).
 - Chặn quảng cáo theo 4 bộ lọc: FMSF 2.0, ABPVN, AdGuard Mobile Ads,
   EasyList. Bộ lọc tải về máy, tự kiểm tra bản mới mỗi 24 giờ.
 - Lịch sử duyệt web: xem, tìm, xóa từng mục hoặc xóa hết.
-- Dấu trang: gắn sao trang đang xem, mở lại nhanh.
+- Dấu trang: chọn **Lưu trang này** trong menu, mở lại từ mục **Dấu trang**.
 - Sao lưu và khôi phục: xuất dấu trang, lịch sử, cài đặt và tab đã lưu ra
   file JSON, khôi phục lại trên máy khác.
 - Trang chủ với 12 trang phổ thông gợi ý sẵn.
@@ -31,8 +31,10 @@ tab, lịch sử và dấu trang).
 - Tải video YouTube: bắt link phát trực tiếp từ request mạng của trang,
   gộp hình và tiếng bằng MediaMuxer, ưu tiên tiếng AAC (mở video cho phát
   vài giây rồi bấm nút tải).
-- Chọn công cụ tìm kiếm, giao diện sáng/tối, thanh trên dạng chip và ô
-  địa chỉ dạng pill.
+- Chọn công cụ tìm kiếm cho trang chủ và thanh địa chỉ. Giao diện sáng/tối,
+  thanh điều hướng phía dưới và lưới tab thích ứng với chiều rộng màn hình.
+- Cuộn trang xuống thì thanh địa chỉ và thanh điều hướng tự ẩn cho toàn
+  màn hình, cuộn ngược lên thì hiện lại.
 - Báo cáo sự cố tích hợp (CrashReporter).
 
 ## Bộ máy

@@ -5,11 +5,17 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,40 +24,49 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.OpenInNew
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -62,7 +77,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -79,14 +93,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import vn.tunglv.browser.BrowserViewModel
@@ -96,7 +117,6 @@ import vn.tunglv.browser.data.searchEngineById
 import vn.tunglv.browser.filter.FilterStore
 import vn.tunglv.browser.web.HOME_URL
 import vn.tunglv.browser.web.TabManager
-import vn.tunglv.browser.web.TabSession
 import vn.tunglv.browser.web.resolveInput
 
 private enum class AppScreen {
@@ -205,399 +225,298 @@ private fun BrowserMainScreen(
     val blockedCount by FilterStore.blockedCount.collectAsState()
     val bookmarks by BookmarkStore.bookmarks.collectAsState()
 
-    var addressText by remember { mutableStateOf("") }
+    var addressText by remember { mutableStateOf(TextFieldValue()) }
     var addressFocused by remember { mutableStateOf(false) }
     var menuExpanded by remember { mutableStateOf(false) }
     var downloadSheet by remember { mutableStateOf<Pair<String, String?>?>(null) }
 
     val tabUrl = activeTab?.url?.value ?: ""
-    val tabIsStartPage = activeTab?.isStartPage?.value ?: true
+    val tabIsStartPage = activeTab?.isStartPage?.value == true
     val tabTitle = activeTab?.title?.value ?: ""
     val tabProgress = activeTab?.progress?.intValue ?: 100
     val tabCanGoBack = activeTab?.canGoBack?.value ?: false
     val tabCanGoForward = activeTab?.canGoForward?.value ?: false
 
+    val isWebPage = !tabIsStartPage && (tabUrl.startsWith("https://") || tabUrl.startsWith("http://"))
+    // Cuộn trang xuống thì ẩn 2 thanh, cuộn lên thì hiện lại. Lúc đang
+    // sửa địa chỉ thì luôn hiện thanh địa chỉ để người dùng nhìn thấy.
+    val hideBars = activeTab?.barsHidden?.value == true && isWebPage && !addressFocused
+    val bookmarked = isWebPage && bookmarks.any { it.url == tabUrl }
+    val engine = searchEngineById(settings.searchEngineId)
+    val keyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    val colors = MaterialTheme.colorScheme
+
+    LaunchedEffect(activeTab?.id) { focusManager.clearFocus() }
+
     // Địa chỉ trang đổi thì thanh địa chỉ hiện theo, trừ lúc đang gõ.
-    LaunchedEffect(activeTab?.id, tabUrl, tabIsStartPage) {
+    LaunchedEffect(activeTab?.id, tabUrl, tabIsStartPage, addressFocused) {
         if (!addressFocused) {
-            addressText = if (tabIsStartPage) "" else tabUrl
+            addressText = TextFieldValue(if (tabIsStartPage) "" else tabUrl)
         }
     }
 
     fun goTo(input: String) {
         val tab = activeTab ?: return
+        if (input.isBlank()) return
         focusManager.clearFocus()
-        tabManager.navigate(tab, input, searchEngineById(settings.searchEngineId))
+        tabManager.navigate(tab, input, engine)
     }
 
-    BackHandler(enabled = tabCanGoBack) {
-        activeTab?.let { tabManager.goBack(it) }
+    BackHandler(enabled = addressFocused || tabCanGoBack) {
+        if (addressFocused) {
+            focusManager.clearFocus()
+        } else {
+            activeTab?.let(tabManager::goBack)
+        }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                // Android 15 vẽ tràn lên thanh trạng thái: chừa chỗ cho nó
-                // thì hàng công cụ mới không bị lố lên trên màn hình.
-                .statusBarsPadding()
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-        ) {
-            // Chip chặn quảng cáo: khiên + số request đã chặn, bấm để bật/tắt.
-            Surface(
-                onClick = {
-                    val next = !settings.adBlockEnabled
-                    SettingsStore.update(adBlockEnabled = next)
-                    Toast.makeText(
-                        context,
-                        if (next) "Đã bật chặn quảng cáo." else "Đã tắt chặn quảng cáo.",
-                        Toast.LENGTH_SHORT,
-                    ).show()
-                },
-                shape = CircleShape,
-                color = if (settings.adBlockEnabled) {
-                    MaterialTheme.colorScheme.primaryContainer
-                } else {
-                    MaterialTheme.colorScheme.surfaceContainerHigh
-                },
-            ) {
+    val addressField: @Composable (Modifier) -> Unit = { modifier ->
+        val fieldShape = RoundedCornerShape(18.dp)
+        BasicTextField(
+            value = addressText,
+            onValueChange = { addressText = it },
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.onSurface),
+            cursorBrush = SolidColor(colors.primary),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+            keyboardActions = KeyboardActions(onGo = { goTo(addressText.text) }),
+            modifier = modifier
+                .onFocusChanged {
+                    if (it.isFocused && !addressFocused && addressText.text.isNotEmpty()) {
+                        addressText = addressText.copy(selection = TextRange(0, addressText.text.length))
+                    }
+                    addressFocused = it.isFocused
+                }
+                .semantics { contentDescription = "Địa chỉ hoặc từ khóa" },
+            decorationBox = { innerTextField ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                    modifier = Modifier
+                        .heightIn(min = 54.dp)
+                        .background(if (addressFocused) colors.surface else colors.surfaceContainerLow, fieldShape)
+                        .border(1.dp, if (addressFocused) colors.primary else colors.outlineVariant, fieldShape)
+                        .padding(start = 14.dp, end = 4.dp),
                 ) {
                     Icon(
-                        Icons.Default.Shield,
+                        if (isWebPage && !addressFocused && tabUrl.startsWith("https://")) {
+                            Icons.Outlined.Lock
+                        } else {
+                            Icons.Outlined.Search
+                        },
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = if (settings.adBlockEnabled) {
-                            MaterialTheme.colorScheme.onPrimaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
+                        modifier = Modifier.size(20.dp),
+                        tint = if (addressFocused) colors.primary else colors.onSurfaceVariant,
                     )
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        "$blockedCount",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = if (settings.adBlockEnabled) {
-                            MaterialTheme.colorScheme.onPrimaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                    )
+                    Spacer(Modifier.width(10.dp))
+                    Box(Modifier.weight(1f).padding(vertical = 10.dp)) {
+                        if (addressText.text.isEmpty()) {
+                            Text(
+                                if (tabIsStartPage) "Tìm với ${engine.name}" else "Tìm kiếm hoặc nhập địa chỉ",
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                color = colors.onSurfaceVariant,
+                            )
+                        }
+                        innerTextField()
+                    }
+                    if (addressFocused && addressText.text.isNotEmpty()) {
+                        IconButton(onClick = { addressText = TextFieldValue() }) {
+                            Icon(Icons.Default.Close, contentDescription = "Xóa nội dung")
+                        }
+                    } else if (isWebPage && !addressFocused) {
+                        IconButton(onClick = { activeTab?.let(tabManager::reload) }) {
+                            Icon(Icons.Outlined.Refresh, contentDescription = "Tải lại trang")
+                        }
+                    }
                 }
-            }
-            Spacer(Modifier.width(6.dp))
-            // Ô địa chỉ dạng pill 44dp: OutlinedTextField mặc định cao 56dp, đặt
-            // trong hàng công cụ trông lố và đẩy các nút khác lệch.
-            BasicTextField(
-                value = addressText,
-                onValueChange = { addressText = it },
-                singleLine = true,
-                textStyle = TextStyle(
-                    fontSize = 15.sp,
-                    color = MaterialTheme.colorScheme.onSurface,
-                ),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
-                keyboardActions = KeyboardActions(onGo = { goTo(addressText) }),
-                modifier = Modifier
-                    .weight(1f)
-                    .onFocusChanged { addressFocused = it.isFocused },
-                decorationBox = { innerTextField ->
+            },
+        )
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colors.background)
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+            .statusBarsPadding()
+            .imePadding(),
+    ) {
+        if (!tabIsStartPage && activeTab != null) {
+            AnimatedVisibility(
+                visible = !hideBars,
+                enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
+            ) {
+                Column {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
-                            .background(
-                                MaterialTheme.colorScheme.surfaceContainerHigh,
-                                RoundedCornerShape(22.dp),
-                            )
-                            .height(44.dp)
-                            .padding(horizontal = 12.dp),
-                    ) {
-                        Icon(
-                            if (tabUrl.startsWith("https://")) Icons.Default.Lock else Icons.Default.Search,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Box(Modifier.weight(1f)) {
-                            if (addressText.isEmpty()) {
-                                Text(
-                                    "Nhập địa chỉ hoặc từ khóa…",
-                                    fontSize = 15.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            innerTextField()
-                        }
-                        if (addressFocused && addressText.isNotEmpty()) {
-                            IconButton(
-                                onClick = { addressText = "" },
-                                modifier = Modifier.size(28.dp),
-                            ) {
-                                Icon(
-                                    Icons.Default.Close,
-                                    contentDescription = "Xóa địa chỉ",
-                                    modifier = Modifier.size(18.dp),
-                                )
-                            }
-                        }
-                    }
-                },
-            )
-            Spacer(Modifier.width(6.dp))
-            // Nút xem tab, hiện số tab đang mở.
-            Surface(
-                onClick = onOpenTabs,
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                modifier = Modifier.size(40.dp),
-            ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        "${tabManager.tabs.size}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-            }
-            // Nút tải media của trang đang mở, kèm số link đã bắt được.
-            Box {
-                IconButton(
-                    onClick = {
-                        val cookies = try {
-                            CookieManager.getInstance().getCookie(tabUrl)
-                        } catch (_: Exception) {
-                            null
-                        }
-                        downloadSheet = tabUrl to cookies
-                    },
-                    enabled = tabUrl.startsWith("http://") || tabUrl.startsWith("https://"),
-                ) {
-                    Icon(Icons.Default.Download, contentDescription = "Tải media của trang này")
-                }
-                val captureCount = activeTab?.capturedMedia?.size ?: 0
-                if (captureCount > 0) {
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(top = 2.dp, end = 2.dp),
-                    ) {
-                        Text(
-                            "$captureCount",
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
-                        )
-                    }
-                }
-            }
-            Box {
-                IconButton(onClick = { menuExpanded = true }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "Thêm")
-                }
-                DropdownMenu(
-                    expanded = menuExpanded,
-                    onDismissRequest = { menuExpanded = false },
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Tab mới") },
-                        leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
-                        onClick = {
-                            menuExpanded = false
-                            tabManager.createTab(HOME_URL, activate = true)
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Lịch sử") },
-                        leadingIcon = { Icon(Icons.Default.History, contentDescription = null) },
-                        onClick = {
-                            menuExpanded = false
-                            onOpenHistory()
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Dấu trang") },
-                        leadingIcon = { Icon(Icons.Default.Star, contentDescription = null) },
-                        onClick = {
-                            menuExpanded = false
-                            onOpenBookmarks()
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Cài đặt") },
-                        leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                        onClick = {
-                            menuExpanded = false
-                            onOpenSettings()
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Sao chép link") },
-                        leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
-                        onClick = {
-                            menuExpanded = false
-                            if (tabUrl.isNotBlank()) {
-                                val clip = ClipData.newPlainText("Link", tabUrl)
-                                (context.getSystemService(Context.CLIPBOARD_SERVICE)
-                                    as ClipboardManager).setPrimaryClip(clip)
-                                Toast.makeText(context, "Đã sao chép link.", Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Chia sẻ link") },
-                        leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
-                        onClick = {
-                            menuExpanded = false
-                            if (tabUrl.isNotBlank()) {
-                                val intent = Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_TEXT, tabUrl)
-                                }
-                                context.startActivity(Intent.createChooser(intent, "Chia sẻ link"))
-                            }
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Mở bằng app khác") },
-                        leadingIcon = { Icon(Icons.Default.OpenInNew, contentDescription = null) },
-                        onClick = {
-                            menuExpanded = false
-                            if (tabUrl.isNotBlank()) {
-                                try {
-                                    context.startActivity(
-                                        Intent(Intent.ACTION_VIEW, Uri.parse(tabUrl)),
-                                    )
-                                } catch (_: Exception) {
-                                    Toast.makeText(
-                                        context,
-                                        "Không mở được link này.",
-                                        Toast.LENGTH_SHORT,
-                                    ).show()
-                                }
-                            }
-                        },
-                    )
-                }
-            }
-        }
-        if (tabProgress in 1..99) {
-            LinearProgressIndicator(
-                progress = { tabProgress / 100f },
-                modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = Color.Transparent,
-            )
-        }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        if (activeTab == null) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator()
-            }
-        } else {
-            AndroidView(
-                factory = { ctx -> FrameLayout(ctx) },
-                update = { container ->
-                    val tab: TabSession = activeTab
-                    val webView = tabManager.ensureWebView(tab)
-                    if (webView.parent !== container) {
-                        (webView.parent as? ViewGroup)?.removeView(webView)
-                        container.removeAllViews()
-                        container.addView(
-                            webView,
-                            FrameLayout.LayoutParams(
-                                FrameLayout.LayoutParams.MATCH_PARENT,
-                                FrameLayout.LayoutParams.MATCH_PARENT,
+                            .fillMaxWidth()
+                            .background(colors.surface)
+                            .padding(
+                                start = 12.dp,
+                                end = if (isWebPage && !addressFocused) 4.dp else 12.dp,
+                                top = 6.dp,
+                                bottom = 6.dp,
                             ),
+                    ) {
+                        addressField(Modifier.weight(1f))
+                        if (isWebPage && !addressFocused) {
+                            MediaDownloadButton(activeTab.capturedMedia.size) {
+                                val cookies = try {
+                                    CookieManager.getInstance().getCookie(tabUrl)
+                                } catch (_: Exception) {
+                                    null
+                                }
+                                downloadSheet = tabUrl to cookies
+                            }
+                        }
+                    }
+                    Box(Modifier.fillMaxWidth().height(2.dp)) {
+                        if (tabProgress in 1..99) {
+                            LinearProgressIndicator(
+                                progress = { tabProgress / 100f },
+                                modifier = Modifier.fillMaxSize(),
+                                color = colors.primary,
+                                trackColor = Color.Transparent,
+                            )
+                        } else {
+                            HorizontalDivider(Modifier.align(Alignment.BottomCenter), color = colors.outlineVariant)
+                        }
+                    }
+                }
+            }
+        }
+
+        Box(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (activeTab == null) {
+                CircularProgressIndicator()
+            } else {
+                AndroidView(
+                    factory = { ctx -> FrameLayout(ctx) },
+                    update = { container ->
+                        val webView = tabManager.ensureWebView(activeTab)
+                        if (webView.parent !== container) {
+                            (webView.parent as? ViewGroup)?.removeView(webView)
+                            container.removeAllViews()
+                            container.addView(
+                                webView,
+                                FrameLayout.LayoutParams(
+                                    FrameLayout.LayoutParams.MATCH_PARENT,
+                                    FrameLayout.LayoutParams.MATCH_PARENT,
+                                ),
+                            )
+                        }
+                        container.visibility = if (tabIsStartPage) View.INVISIBLE else View.VISIBLE
+                    },
+                    onRelease = { it.removeAllViews() },
+                    modifier = Modifier.fillMaxSize(),
+                )
+                if (tabIsStartPage) {
+                    StartPage(addressField, ::goTo, showShortcuts = !keyboardVisible)
+                }
+            }
+        }
+
+        if (!keyboardVisible) {
+            AnimatedVisibility(
+                visible = !hideBars,
+                enter = expandVertically(expandFrom = Alignment.Bottom) + fadeIn(),
+                exit = shrinkVertically(shrinkTowards = Alignment.Bottom) + fadeOut(),
+            ) {
+            Column(
+                modifier = Modifier.fillMaxWidth().background(colors.surface).navigationBarsPadding(),
+            ) {
+                HorizontalDivider(color = colors.outlineVariant)
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    BottomBarButton(
+                        icon = Icons.AutoMirrored.Filled.ArrowBack,
+                        label = "Lùi",
+                        enabled = tabCanGoBack,
+                        onClick = {
+                            focusManager.clearFocus()
+                            activeTab?.let(tabManager::goBack)
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                    BottomBarButton(
+                        icon = Icons.AutoMirrored.Filled.ArrowForward,
+                        label = "Tiến",
+                        enabled = tabCanGoForward,
+                        onClick = {
+                            focusManager.clearFocus()
+                            activeTab?.let(tabManager::goForward)
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                    BottomBarButton(
+                        icon = Icons.Outlined.Home,
+                        label = "Trang chủ",
+                        enabled = activeTab != null,
+                        active = tabIsStartPage,
+                        onClick = {
+                            focusManager.clearFocus()
+                            if (!tabIsStartPage) activeTab?.let(tabManager::openStartPage)
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                    val tabCount = tabManager.tabs.size
+                    BottomBarButton(
+                        label = "Tab",
+                        description = "Xem $tabCount tab đang mở",
+                        tabCount = tabCount,
+                        onClick = onOpenTabs,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Box(Modifier.weight(1f)) {
+                        BottomBarButton(
+                            icon = Icons.Default.MoreVert,
+                            label = "Menu",
+                            active = menuExpanded,
+                            onClick = {
+                                focusManager.clearFocus()
+                                menuExpanded = true
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        BrowserMenu(
+                            expanded = menuExpanded,
+                            onDismiss = { menuExpanded = false },
+                            tabUrl = tabUrl.takeIf { isWebPage }.orEmpty(),
+                            bookmarked = bookmarked,
+                            adBlockEnabled = settings.adBlockEnabled,
+                            blockedCount = blockedCount,
+                            onNewTab = { tabManager.createTab(HOME_URL, activate = true) },
+                            onHistory = onOpenHistory,
+                            onBookmarks = onOpenBookmarks,
+                            onSettings = onOpenSettings,
+                            onSavePage = {
+                                val nowMarked = BookmarkStore.toggle(tabUrl, tabTitle)
+                                Toast.makeText(
+                                    context,
+                                    if (nowMarked) "Đã thêm dấu trang." else "Đã gỡ dấu trang.",
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            },
+                            onToggleAdBlock = {
+                                val enabled = !settings.adBlockEnabled
+                                SettingsStore.update(adBlockEnabled = enabled)
+                                Toast.makeText(
+                                    context,
+                                    if (enabled) "Đã bật chặn quảng cáo." else "Đã tắt chặn quảng cáo.",
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            },
                         )
                     }
-                },
-                onRelease = { container ->
-                    // Chỉ gỡ WebView khỏi khung, tab vẫn giữ WebView để mở lại.
-                    container.removeAllViews()
-                },
-                modifier = Modifier.weight(1f),
-            )
-        }
-        // Thanh dưới: nền riêng + nhãn dưới mỗi nút để nhìn là biết nút gì.
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surfaceContainerLow)
-                .navigationBarsPadding(),
-        ) {
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                BottomBarButton(
-                    icon = Icons.Default.ArrowBack,
-                    label = "Quay lại",
-                    enabled = tabCanGoBack,
-                    active = false,
-                    onClick = { activeTab?.let { tabManager.goBack(it) } },
-                    modifier = Modifier.weight(1f),
-                )
-                BottomBarButton(
-                    icon = Icons.Default.ArrowForward,
-                    label = "Tiến tới",
-                    enabled = tabCanGoForward,
-                    active = false,
-                    onClick = { activeTab?.let { tabManager.goForward(it) } },
-                    modifier = Modifier.weight(1f),
-                )
-                BottomBarButton(
-                    icon = Icons.Default.Home,
-                    label = "Trang chủ",
-                    enabled = true,
-                    active = tabIsStartPage,
-                    onClick = { activeTab?.let { tabManager.openStartPage(it) } },
-                    modifier = Modifier.weight(1f),
-                )
-                BottomBarButton(
-                    icon = Icons.Default.Refresh,
-                    label = "Tải lại",
-                    enabled = true,
-                    active = false,
-                    onClick = { activeTab?.let { tabManager.reload(it) } },
-                    modifier = Modifier.weight(1f),
-                )
-                val bookmarked = tabUrl.isNotBlank() && bookmarks.any { it.url == tabUrl }
-                BottomBarButton(
-                    icon = Icons.Default.Star,
-                    label = "Dấu trang",
-                    enabled = tabUrl.isNotBlank(),
-                    active = bookmarked,
-                    onClick = {
-                        if (tabUrl.isBlank()) return@BottomBarButton
-                        val nowMarked = BookmarkStore.toggle(tabUrl, tabTitle)
-                        Toast.makeText(
-                            context,
-                            if (nowMarked) "Đã thêm dấu trang." else "Đã gỡ dấu trang.",
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    },
-                    modifier = Modifier.weight(1f),
-                )
+                }
+            }
             }
         }
     }
@@ -613,32 +532,160 @@ private fun BrowserMainScreen(
     }
 }
 
-/** Một nút ở thanh dưới: icon + nhãn nhỏ bên dưới, nút đang bật thì đỏ. */
+@Composable
+private fun MediaDownloadButton(captureCount: Int, onClick: () -> Unit) {
+    IconButton(onClick = onClick) {
+        BadgedBox(badge = { if (captureCount > 0) Badge { Text(captureCount.toString()) } }) {
+            Icon(
+                Icons.Outlined.Download,
+                contentDescription = if (captureCount > 0) {
+                    "Tải media, $captureCount liên kết phát hiện được"
+                } else {
+                    "Tải media của trang"
+                },
+            )
+        }
+    }
+}
+
 @Composable
 private fun BottomBarButton(
-    icon: ImageVector,
     label: String,
-    enabled: Boolean,
-    active: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    description: String = label,
+    tabCount: Int = 0,
+    enabled: Boolean = true,
+    active: Boolean = false,
 ) {
+    val colors = MaterialTheme.colorScheme
     val tint = when {
-        !enabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-        active -> MaterialTheme.colorScheme.primary
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
+        !enabled -> colors.onSurfaceVariant.copy(alpha = 0.38f)
+        active -> colors.primary
+        else -> colors.onSurfaceVariant
     }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(vertical = 6.dp),
+            .heightIn(min = 52.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = description }
+            .padding(vertical = 3.dp),
     ) {
-        Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(22.dp))
-        Spacer(Modifier.height(2.dp))
-        Text(label, style = MaterialTheme.typography.labelSmall, color = tint)
+        Box(
+            modifier = Modifier
+                .size(width = 46.dp, height = 29.dp)
+                .background(if (active) colors.primaryContainer else Color.Transparent, RoundedCornerShape(12.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (icon != null) {
+                Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+            } else {
+                Box(
+                    modifier = Modifier.size(25.dp).border(1.5.dp, tint, RoundedCornerShape(6.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        if (tabCount > 99) "99+" else tabCount.toString(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = tint,
+                        maxLines = 1,
+                        modifier = Modifier.clearAndSetSemantics { },
+                    )
+                }
+            }
+        }
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = tint,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.clearAndSetSemantics { },
+        )
     }
+}
+
+@Composable
+private fun BrowserMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    tabUrl: String,
+    bookmarked: Boolean,
+    adBlockEnabled: Boolean,
+    blockedCount: Int,
+    onNewTab: () -> Unit,
+    onHistory: () -> Unit,
+    onBookmarks: () -> Unit,
+    onSettings: () -> Unit,
+    onSavePage: () -> Unit,
+    onToggleAdBlock: () -> Unit,
+) {
+    val context = LocalContext.current
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        BrowserMenuItem(Icons.Outlined.Add, "Tab mới", onDismiss, onNewTab)
+        BrowserMenuItem(Icons.Outlined.History, "Lịch sử", onDismiss, onHistory)
+        BrowserMenuItem(Icons.Outlined.StarBorder, "Dấu trang", onDismiss, onBookmarks)
+        BrowserMenuItem(Icons.Outlined.Settings, "Cài đặt", onDismiss, onSettings)
+        HorizontalDivider()
+        DropdownMenuItem(
+            text = { Text("Chặn quảng cáo") },
+            leadingIcon = { Icon(Icons.Outlined.Shield, contentDescription = null) },
+            trailingIcon = {
+                Text(
+                    if (adBlockEnabled) "Bật · $blockedCount" else "Tắt",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+            onClick = {
+                onDismiss()
+                onToggleAdBlock()
+            },
+        )
+        if (tabUrl.isNotEmpty()) {
+            HorizontalDivider()
+            BrowserMenuItem(
+                if (bookmarked) Icons.Default.Star else Icons.Outlined.StarBorder,
+                if (bookmarked) "Gỡ dấu trang này" else "Lưu trang này",
+                onDismiss,
+                onSavePage,
+            )
+            BrowserMenuItem(Icons.Outlined.ContentCopy, "Sao chép liên kết", onDismiss) {
+                val clip = ClipData.newPlainText("Liên kết", tabUrl)
+                (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(clip)
+                Toast.makeText(context, "Đã sao chép liên kết.", Toast.LENGTH_SHORT).show()
+            }
+            BrowserMenuItem(Icons.Outlined.Share, "Chia sẻ liên kết", onDismiss) {
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, tabUrl)
+                }
+                context.startActivity(Intent.createChooser(intent, "Chia sẻ liên kết"))
+            }
+            BrowserMenuItem(Icons.AutoMirrored.Outlined.OpenInNew, "Mở bằng ứng dụng khác", onDismiss) {
+                try {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(tabUrl)))
+                } catch (_: Exception) {
+                    Toast.makeText(context, "Không mở được liên kết này.", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BrowserMenuItem(icon: ImageVector, label: String, onDismiss: () -> Unit, onClick: () -> Unit) {
+    DropdownMenuItem(
+        text = { Text(label) },
+        leadingIcon = { Icon(icon, contentDescription = null) },
+        onClick = {
+            onDismiss()
+            onClick()
+        },
+    )
 }
 
 /** Hộp hiện chi tiết lỗi làm app tự đóng ở lần mở trước, để sao chép gửi đi. */
