@@ -315,7 +315,10 @@ class TabManager(
         scope.launch {
             val urls = withTimeoutOrNull(DEEP_SCAN_TIMEOUT_MS) {
                 withContext(Dispatchers.Main) {
-                    suspendCancellableCoroutine { continuation ->
+                    // Ghi rõ kiểu List<String>: resume() nằm trong callback
+                    // lồng nhau nên trình biên dịch không tự suy ra được kiểu
+                    // của continuation (lỗi suy luận kiểu ở build Actions #4).
+                    suspendCancellableCoroutine<List<String>> { continuation ->
                         try {
                             webView.evaluateJavascript(DEEP_SCAN_JS) { result ->
                                 if (continuation.isActive) {
