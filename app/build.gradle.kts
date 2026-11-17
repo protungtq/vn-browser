@@ -25,6 +25,18 @@ android {
         }
     }
 
+    signingConfigs {
+        getByName("debug") {
+            // Keystore debug dùng chung, commit kèm repo để mọi lần build
+            // (máy bố, GitHub Actions) ký cùng 1 chữ ký, cài đè được.
+            // Đây là khóa debug, KHÔNG phải khóa phát hành.
+            storeFile = rootProject.file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
