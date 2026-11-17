@@ -31,6 +31,9 @@ tab, lịch sử và dấu trang).
 - Tải video YouTube: bắt link phát trực tiếp từ request mạng của trang,
   gộp hình và tiếng bằng MediaMuxer, ưu tiên tiếng AAC (mở video cho phát
   vài giây rồi bấm nút tải).
+- Tải video trang tin (vd VnExpress): bắt playlist luồng phát HLS/DASH từ
+  request mạng, tải qua bộ quét yt-dlp; mở bảng tải còn quét sâu trang
+  đang mở để tìm video nhúng mà trình phát chưa kịp xin.
 - Chọn công cụ tìm kiếm cho trang chủ và thanh địa chỉ. Giao diện sáng/tối,
   thanh điều hướng phía dưới và lưới tab thích ứng với chiều rộng màn hình.
 - Cuộn trang xuống thì thanh địa chỉ và thanh điều hướng tự ẩn cho toàn

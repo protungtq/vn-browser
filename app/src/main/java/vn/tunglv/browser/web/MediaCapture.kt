@@ -2,8 +2,11 @@ package vn.tunglv.browser.web
 
 import android.net.Uri
 
-/** Loại media bắt được từ request mạng của trang. */
-enum class CapturedKind { VIDEO, AUDIO, GENERIC }
+/**
+ * Loại media bắt được từ request mạng của trang. STREAM là playlist luồng
+ * phát HLS/DASH (vd video VnExpress), tải qua bộ quét yt-dlp.
+ */
+enum class CapturedKind { VIDEO, AUDIO, GENERIC, STREAM }
 
 /**
  * Một link media bắt được khi trang phát video/âm thanh. Link YouTube giữ
@@ -39,8 +42,9 @@ fun captureKey(media: CapturedMedia): String {
 }
 
 /**
- * Request mạng nào trông như file video/âm thanh trực tiếp thì bắt, kể cả
- * link phát của YouTube (googlevideo, không có đuôi file).
+ * Request mạng nào trông như file video/âm thanh trực tiếp hoặc playlist
+ * luồng phát (HLS/DASH) thì bắt, kể cả link phát của YouTube (googlevideo,
+ * không có đuôi file).
  */
 fun classifyMediaUrl(url: String): CapturedMedia? {
     val lower = url.lowercase()
@@ -49,7 +53,7 @@ fun classifyMediaUrl(url: String): CapturedMedia? {
         lower.contains(".png") || lower.contains(".webp") ||
         lower.contains(".gif") || lower.contains(".svg") ||
         lower.contains(".css") || lower.contains(".js") ||
-        lower.contains(".json") || lower.contains(".m3u8")
+        lower.contains(".json")
     ) {
         return null
     }
@@ -80,6 +84,14 @@ fun classifyMediaUrl(url: String): CapturedMedia? {
             }
             else -> null
         }
+    }
+    // Luồng phát HLS/DASH của trang tin (vd VnExpress): playlist .m3u8/.mpd,
+    // tải qua bộ quét yt-dlp chứ không tải thẳng như file thường. Chỉ nhận
+    // khi đuôi nằm ở đường dẫn (trước dấu ?), tránh nhầm tham số truy vấn.
+    // Mảnh .ts của luồng thì không bắt, vì tải lẻ từng mảnh vô dụng.
+    val path = lower.substringBefore("?").substringBefore("#")
+    if (path.endsWith(".m3u8") || path.endsWith(".mpd")) {
+        return CapturedMedia(url, "Video (luồng phát)", CapturedKind.STREAM)
     }
     if (lower.contains(".mp4") || lower.contains(".m4v") ||
         lower.contains(".mov") || lower.contains(".webm") ||

@@ -21,10 +21,14 @@ import androidx.compose.runtime.mutableStateOf
 import java.io.ByteArrayInputStream
 import java.net.URL
 import java.net.URLEncoder
+import kotlin.coroutines.resume
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import org.json.JSONArray
 import vn.tunglv.browser.data.HistoryStore
 import vn.tunglv.browser.data.SavedTab
 import vn.tunglv.browser.data.SearchEngine
@@ -37,6 +41,32 @@ const val HOME_URL = "vnbrowser://home"
 
 /** Địa chỉ gốc khi nạp trang chủ tự dựng. */
 private const val HOME_BASE_URL = "https://vn-browser.home/"
+
+/** Quét sâu trang tìm video nhúng: chờ JavaScript tối đa 5 giây. */
+private const val DEEP_SCAN_TIMEOUT_MS = 5_000L
+
+/**
+ * JavaScript quét sâu: gom src của thẻ video/audio/source và mọi link media
+ * (.m3u8/.mpd/.mp4/...) xuất hiện trong HTML của trang (kể cả dữ liệu
+ * JSON-LD mà trang tin hay nhúng link video vào). Trả về mảng link.
+ */
+private const val DEEP_SCAN_JS = """
+(function() {
+  try {
+    var out = [];
+    function add(u) {
+      if (typeof u === 'string' && (u.indexOf('http://') === 0 || u.indexOf('https://') === 0)) out.push(u);
+    }
+    var media = document.querySelectorAll('video, audio, source');
+    for (var i = 0; i < media.length; i++) { add(media[i].src); add(media[i].currentSrc); }
+    var haystack = document.documentElement.outerHTML || '';
+    var re = /https?:\/\/[^\s"'<>\\]+\.(m3u8|mpd|mp4|m4v|webm|mov|mp3|m4a)(\?[^\s"'<>\\]*)?/gi;
+    var m; var n = 0;
+    while ((m = re.exec(haystack)) !== null && n < 50) { out.push(m[0]); n++; }
+    return out;
+  } catch (e) { return []; }
+})()
+"""
 
 /**
  * Một tab duyệt web. WebView chỉ được tạo khi tab lần đầu được mở lên,
@@ -270,6 +300,52 @@ class TabManager(
                 session.webView?.loadUrl("https://www.google.com")
             } catch (_: Throwable) {
             }
+        }
+    }
+
+    /**
+     * Quét sâu trang đang mở tìm video nhúng: trang tin thường nhúng video
+     * HLS trong thẻ <video> hoặc dữ liệu JSON-LD mà trình phát chưa kịp xin,
+     * nên request mạng không thấy. Chạy JavaScript trong WebView, gom link
+     * rồi phân loại như link bắt từ request mạng. Lỗi hoặc quá 5 giây thì
+     * thôi, không làm phiền người dùng.
+     */
+    fun deepScanMedia(session: TabSession) {
+        val webView = session.webView ?: return
+        scope.launch {
+            val urls = withTimeoutOrNull(DEEP_SCAN_TIMEOUT_MS) {
+                withContext(Dispatchers.Main) {
+                    suspendCancellableCoroutine { continuation ->
+                        try {
+                            webView.evaluateJavascript(DEEP_SCAN_JS) { result ->
+                                if (continuation.isActive) {
+                                    continuation.resume(parseJsUrlList(result))
+                                }
+                            }
+                        } catch (_: Throwable) {
+                            if (continuation.isActive) continuation.resume(emptyList())
+                        }
+                    }
+                }
+            } ?: return@launch
+            withContext(Dispatchers.Main) {
+                for (url in urls) {
+                    val captured = classifyMediaUrl(url) ?: continue
+                    session.addCapture(captured)
+                }
+            }
+        }
+    }
+
+    /** Kết quả evaluateJavascript là JSON của mảng link, "null" khi lỗi. */
+    private fun parseJsUrlList(result: String?): List<String> {
+        if (result.isNullOrBlank() || result == "null") return emptyList()
+        return try {
+            val array = JSONArray(result)
+            List(array.length()) { array.optString(it) }
+                .filter { it.startsWith("http://") || it.startsWith("https://") }
+        } catch (_: Exception) {
+            emptyList()
         }
     }
 

@@ -528,6 +528,7 @@ private fun BrowserMainScreen(
             captures = tabCaptures,
             pageTitle = tabTitle,
             onClose = { downloadSheet = null },
+            onDeepScan = { activeTab?.let { tabManager.deepScanMedia(it) } },
         )
     }
 }

@@ -81,6 +81,7 @@ fun DownloadSheet(
     captures: List<CapturedMedia>,
     pageTitle: String,
     onClose: () -> Unit,
+    onDeepScan: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -92,12 +93,12 @@ fun DownloadSheet(
     var selectedCapture by remember { mutableStateOf<CapturedMedia?>(null) }
     var pendingDownload by remember { mutableStateOf(false) }
 
-    // Link bắt được xếp: video chất lượng cao trước, rồi video thường, rồi tiếng.
+    // Link bắt được xếp: video, luồng phát, link thường, rồi tiếng; trong
+    // cùng loại thì chất lượng cao trước.
     val orderedCaptures = remember(captures) {
         captures.sortedWith(
-            compareByDescending<CapturedMedia> { it.kind == CapturedKind.VIDEO }
-                .thenByDescending { it.height }
-                .thenBy { it.kind != CapturedKind.GENERIC },
+            compareByDescending<CapturedMedia> { kindRank(it.kind) }
+                .thenByDescending { it.height },
         )
     }
     val audioCapture = remember(captures) { bestAudioCapture(captures) }
@@ -106,6 +107,7 @@ fun DownloadSheet(
     LaunchedEffect(orderedCaptures) {
         if (selectedCapture == null) {
             selectedCapture = orderedCaptures.firstOrNull { it.kind == CapturedKind.VIDEO }
+                ?: orderedCaptures.firstOrNull { it.kind == CapturedKind.STREAM }
                 ?: orderedCaptures.firstOrNull()
         }
     }
@@ -147,6 +149,9 @@ fun DownloadSheet(
 
     LaunchedEffect(pageUrl) {
         DownloadState.reset()
+        // Quét sâu trang tìm video nhúng (vd video HLS của trang tin) song
+        // song với lượt quét bằng bộ máy yt-dlp.
+        onDeepScan()
         runScan()
     }
 
@@ -221,7 +226,18 @@ fun DownloadSheet(
                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             } else {
                 pendingDownload = false
-                if (capture != null) {
+                if (capture != null && capture.kind == CapturedKind.STREAM) {
+                    // Luồng phát HLS/DASH: tải qua bộ quét yt-dlp (nó tự
+                    // tải playlist rồi gộp các mảnh), không tải thẳng.
+                    val title = pageTitle.ifBlank { video?.title ?: pageUrl }
+                    DownloadService.start(
+                        context,
+                        capture.url,
+                        VideoFormatOption("best", "Chất lượng tốt nhất", null),
+                        title,
+                        cookieString,
+                    )
+                } else if (capture != null) {
                     // Video rời chưa có tiếng thì gộp thêm luồng tiếng đã bắt được.
                     val audio = if (capture.kind == CapturedKind.VIDEO &&
                         !capture.isProgressiveYouTube()
@@ -262,7 +278,7 @@ fun DownloadSheet(
             if (orderedCaptures.isNotEmpty()) {
                 Text("Link bắt được từ trang:", fontWeight = FontWeight.SemiBold)
                 Text(
-                    "Các link này lấy từ lúc trang phát video, tải thẳng không qua bộ quét.",
+                    "Các link này lấy từ lúc trang phát video; link luồng phát (HLS/DASH) tải qua bộ quét.",
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Spacer(Modifier.height(4.dp))
@@ -441,6 +457,14 @@ fun DownloadSheet(
             Spacer(Modifier.height(24.dp))
         }
     }
+}
+
+/** Thứ hạng loại media để xếp link bắt được: video > luồng phát > thường > tiếng. */
+private fun kindRank(kind: CapturedKind): Int = when (kind) {
+    CapturedKind.VIDEO -> 3
+    CapturedKind.STREAM -> 2
+    CapturedKind.GENERIC -> 1
+    CapturedKind.AUDIO -> 0
 }
 
 /**
