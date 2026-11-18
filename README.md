@@ -17,13 +17,13 @@ từ nguồn không xác định. Nếu cài đè lên bản cũ mà máy báo l
 bản cũ rồi cài lại (nên xuất sao lưu JSON trong app trước khi gỡ để giữ
 tab, lịch sử và dấu trang).
 
-## Tính năng (bản 0.1.6)
+## Tính năng (bản 0.1.7)
 
 - Nhiều tab: mở, đóng, chuyển tab; mở lại app vẫn còn tab cũ.
 - Chặn quảng cáo theo 4 bộ lọc: FMSF 2.0, ABPVN, AdGuard Mobile Ads,
   EasyList. Bộ lọc tải về máy, tự kiểm tra bản mới mỗi 24 giờ.
 - Lịch sử duyệt web: xem, tìm, xóa từng mục hoặc xóa hết.
-- Dấu trang: gắn sao trang đang xem, mở lại nhanh.
+- Dấu trang: chọn **Lưu trang này** trong menu, mở lại từ mục **Dấu trang**.
 - Sao lưu và khôi phục: xuất dấu trang, lịch sử, cài đặt và tab đã lưu ra
   file JSON, khôi phục lại trên máy khác.
 - Trang chủ với 12 trang phổ thông gợi ý sẵn.
@@ -31,14 +31,19 @@ tab, lịch sử và dấu trang).
 - Tải video YouTube: bắt link phát trực tiếp từ request mạng của trang,
   gộp hình và tiếng bằng MediaMuxer, ưu tiên tiếng AAC (mở video cho phát
   vài giây rồi bấm nút tải).
-- Chọn công cụ tìm kiếm, giao diện sáng/tối, thanh trên dạng chip và ô
-  địa chỉ dạng pill.
+- Tải video trang tin (vd VnExpress): bắt playlist luồng phát HLS/DASH từ
+  request mạng, tải qua bộ quét yt-dlp; mở bảng tải còn quét sâu trang
+  đang mở để tìm video nhúng mà trình phát chưa kịp xin.
+- Chọn công cụ tìm kiếm cho trang chủ và thanh địa chỉ. Giao diện sáng/tối,
+  thanh điều hướng phía dưới và lưới tab thích ứng với chiều rộng màn hình.
+- Cuộn trang xuống thì thanh địa chỉ và thanh điều hướng tự ẩn cho toàn
+  màn hình, cuộn ngược lên thì hiện lại.
 - Báo cáo sự cố tích hợp (CrashReporter).
 
 ## Bộ máy
 
 - Kotlin + Jetpack Compose (Material 3), minSdk 26 (Android 8.0+).
-- Bộ máy tải media (youtubedl-android 0.18.1: yt-dlp + FFmpeg + aria2c),
+- Bộ máy tải media (youtubedl-android 0.18.1: yt-dlp + FFmpeg),
   dùng chung với app VDM.
 
 ## Build

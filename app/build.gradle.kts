@@ -12,8 +12,8 @@ android {
         applicationId = "vn.tunglv.browser"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.1.6"
+        versionCode = 8
+        versionName = "0.1.7"
     }
 
     splits {
@@ -22,6 +22,18 @@ android {
             reset()
             include("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
             isUniversalApk = true
+        }
+    }
+
+    signingConfigs {
+        getByName("debug") {
+            // Keystore debug dùng chung, commit kèm repo để mọi lần build
+            // (máy bố, GitHub Actions) ký cùng 1 chữ ký, cài đè được.
+            // Đây là khóa debug, KHÔNG phải khóa phát hành.
+            storeFile = rootProject.file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
         }
     }
 
@@ -50,11 +62,12 @@ android {
 }
 
 dependencies {
-    // Bộ máy tải media (yt-dlp + FFmpeg + aria2c), dùng chung với app VDM.
+    // Bộ máy tải media (yt-dlp + FFmpeg), dùng chung với app VDM.
+    // Không dùng aria2c nữa: yt-dlp trước 2026.06.09 mà dùng aria2c cho
+    // HLS/DASH thì dính CVE-2026-50574; trình tải có sẵn + -N thay thế được.
     val youtubedlAndroid = "0.18.1"
     implementation("io.github.junkfood02.youtubedl-android:library:$youtubedlAndroid")
     implementation("io.github.junkfood02.youtubedl-android:ffmpeg:$youtubedlAndroid")
-    implementation("io.github.junkfood02.youtubedl-android:aria2c:$youtubedlAndroid")
 
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.9.3")
@@ -67,6 +80,7 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.animation:animation")
     implementation("androidx.compose.material:material-icons-extended")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

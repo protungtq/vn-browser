@@ -10,6 +10,7 @@ import android.os.Environment
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -81,6 +83,7 @@ fun DownloadSheet(
     captures: List<CapturedMedia>,
     pageTitle: String,
     onClose: () -> Unit,
+    onDeepScan: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -92,12 +95,12 @@ fun DownloadSheet(
     var selectedCapture by remember { mutableStateOf<CapturedMedia?>(null) }
     var pendingDownload by remember { mutableStateOf(false) }
 
-    // Link bắt được xếp: video chất lượng cao trước, rồi video thường, rồi tiếng.
+    // Link bắt được xếp: video, luồng phát, link thường, rồi tiếng; trong
+    // cùng loại thì chất lượng cao trước.
     val orderedCaptures = remember(captures) {
         captures.sortedWith(
-            compareByDescending<CapturedMedia> { it.kind == CapturedKind.VIDEO }
-                .thenByDescending { it.height }
-                .thenBy { it.kind != CapturedKind.GENERIC },
+            compareByDescending<CapturedMedia> { kindRank(it.kind) }
+                .thenByDescending { it.height },
         )
     }
     val audioCapture = remember(captures) { bestAudioCapture(captures) }
@@ -106,6 +109,7 @@ fun DownloadSheet(
     LaunchedEffect(orderedCaptures) {
         if (selectedCapture == null) {
             selectedCapture = orderedCaptures.firstOrNull { it.kind == CapturedKind.VIDEO }
+                ?: orderedCaptures.firstOrNull { it.kind == CapturedKind.STREAM }
                 ?: orderedCaptures.firstOrNull()
         }
     }
@@ -127,13 +131,18 @@ fun DownloadSheet(
         scanState = ScanState.SCANNING
         try {
             val cookieFile = MediaDownload.writeCookieFile(context, pageUrl, cookieString)
-            val result = MediaDownload.fetchInfo(pageUrl, cookieFile)
-            scanned = result
-            // Chỉ chọn sẵn kết quả quét khi chưa có link bắt được.
-            if (selectedCapture == null) {
-                selected = result.options.firstOrNull()
+            try {
+                val result = MediaDownload.fetchInfo(pageUrl, cookieFile)
+                scanned = result
+                // Chỉ chọn sẵn kết quả quét khi chưa có link bắt được.
+                if (selectedCapture == null) {
+                    selected = result.options.firstOrNull()
+                }
+                scanState = ScanState.READY
+            } finally {
+                // Xóa file cookie tạm ngay sau lượt quét, khỏi nằm lại trong máy.
+                MediaDownload.deleteCookieFile(context)
             }
-            scanState = ScanState.READY
         } catch (e: Exception) {
             errorMessage = e.message ?: "Không quét được link này."
             scanState = ScanState.FAILED
@@ -142,6 +151,9 @@ fun DownloadSheet(
 
     LaunchedEffect(pageUrl) {
         DownloadState.reset()
+        // Quét sâu trang tìm video nhúng (vd video HLS của trang tin) song
+        // song với lượt quét bằng bộ máy yt-dlp.
+        onDeepScan()
         runScan()
     }
 
@@ -216,7 +228,18 @@ fun DownloadSheet(
                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             } else {
                 pendingDownload = false
-                if (capture != null) {
+                if (capture != null && capture.kind == CapturedKind.STREAM) {
+                    // Luồng phát HLS/DASH: tải qua bộ quét yt-dlp (nó tự
+                    // tải playlist rồi gộp các mảnh), không tải thẳng.
+                    val title = pageTitle.ifBlank { video?.title ?: pageUrl }
+                    DownloadService.start(
+                        context,
+                        capture.url,
+                        VideoFormatOption("best", "Chất lượng tốt nhất", null),
+                        title,
+                        cookieString,
+                    )
+                } else if (capture != null) {
                     // Video rời chưa có tiếng thì gộp thêm luồng tiếng đã bắt được.
                     val audio = if (capture.kind == CapturedKind.VIDEO &&
                         !capture.isProgressiveYouTube()
@@ -252,12 +275,16 @@ fun DownloadSheet(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
-            Text("Tải media của trang này", fontWeight = FontWeight.Bold)
+            Text(
+                "Tải media của trang này",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
             Spacer(Modifier.height(12.dp))
             if (orderedCaptures.isNotEmpty()) {
                 Text("Link bắt được từ trang:", fontWeight = FontWeight.SemiBold)
                 Text(
-                    "Các link này lấy từ lúc trang phát video, tải thẳng không qua bộ quét.",
+                    "Các link này lấy từ lúc trang phát video; link luồng phát (HLS/DASH) tải qua bộ quét.",
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Spacer(Modifier.height(4.dp))
@@ -317,16 +344,24 @@ fun DownloadSheet(
                         Text(
                             errorMessage ?: "Không quét được link này.",
                             style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
                         )
                         Spacer(Modifier.height(12.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = { scope.launch { runScan() } }) { Text("Thử lại") }
-                            OutlinedButton(onClick = onClose) { Text("Đóng") }
+                            Button(
+                                onClick = { scope.launch { runScan() } },
+                                modifier = Modifier.heightIn(min = 48.dp),
+                            ) { Text("Thử lại") }
+                            OutlinedButton(
+                                onClick = onClose,
+                                modifier = Modifier.heightIn(min = 48.dp),
+                            ) { Text("Đóng") }
                         }
                     } else {
                         Text(
                             errorMessage ?: "Không quét được link này.",
                             style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
                         )
                         TextButton(onClick = { scope.launch { runScan() } }) {
                             Text("Thử quét lại")
@@ -343,6 +378,10 @@ fun DownloadSheet(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .aspectRatio(16f / 9f)
+                                    .background(
+                                        MaterialTheme.colorScheme.surfaceContainerLow,
+                                        RoundedCornerShape(8.dp),
+                                    )
                                     .clip(RoundedCornerShape(8.dp)),
                             )
                             Spacer(Modifier.height(12.dp))
@@ -416,12 +455,12 @@ fun DownloadSheet(
                 Spacer(Modifier.height(12.dp))
                 OutlinedButton(
                     onClick = onClose,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 ) { Text("Đóng (vẫn tải nền)") }
             } else if (hasChoice) {
                 Button(
                     onClick = { tryStartDownload() },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                 ) { Text("Tải về") }
                 download.statusText?.let { status ->
                     Spacer(Modifier.height(8.dp))
@@ -436,6 +475,14 @@ fun DownloadSheet(
             Spacer(Modifier.height(24.dp))
         }
     }
+}
+
+/** Thứ hạng loại media để xếp link bắt được: video > luồng phát > thường > tiếng. */
+private fun kindRank(kind: CapturedKind): Int = when (kind) {
+    CapturedKind.VIDEO -> 3
+    CapturedKind.STREAM -> 2
+    CapturedKind.GENERIC -> 1
+    CapturedKind.AUDIO -> 0
 }
 
 /**

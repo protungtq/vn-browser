@@ -2,7 +2,6 @@ package vn.tunglv.browser
 
 import android.app.Application
 import android.util.Log
-import com.yausername.aria2c.Aria2c
 import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLException
@@ -16,6 +15,7 @@ import kotlinx.coroutines.launch
 import vn.tunglv.browser.data.BookmarkStore
 import vn.tunglv.browser.data.HistoryStore
 import vn.tunglv.browser.data.SettingsStore
+import vn.tunglv.browser.dl.MediaDownload
 import vn.tunglv.browser.filter.FilterStore
 
 class BrowserApplication : Application() {
@@ -27,6 +27,9 @@ class BrowserApplication : Application() {
         // Gắn bộ ghi lỗi trước mọi thứ khác, để lỗi nào làm app tự đóng
         // cũng để lại báo cáo xem được ở lần mở sau.
         CrashReporter.install(this)
+        // Dọn file cookie tạm do bản cũ để lại trong cache (bản mới xóa
+        // ngay sau mỗi lượt quét/tải, nhưng file cũ vẫn có thể còn sót).
+        MediaDownload.deleteCookieFile(this)
         HistoryStore.init(this)
         BookmarkStore.init(this)
         SettingsStore.init(this)
@@ -34,14 +37,13 @@ class BrowserApplication : Application() {
         // chặn được ngay từ lần duyệt web đầu tiên.
         FilterStore.loadCached(this)
         FilterStore.refreshIfNeeded(this)
-        // Khởi tạo bộ máy yt-dlp + FFmpeg + aria2c cho nút tải media (lần đầu
+        // Khởi tạo bộ máy yt-dlp + FFmpeg cho nút tải media (lần đầu
         // chạy sẽ giải nén Python/yt-dlp/FFmpeg từ native libs nên cần chạy
-        // nền, tránh chặn UI).
+        // nền, tránh chặn UI). Không dùng aria2c nữa (CVE-2026-50574).
         appScope.launch {
             try {
                 YoutubeDL.getInstance().init(this@BrowserApplication)
                 FFmpeg.getInstance().init(this@BrowserApplication)
-                Aria2c.getInstance().init(this@BrowserApplication)
                 _engineReady.value = true
                 Log.i(TAG, "yt-dlp engine ready")
             } catch (e: YoutubeDLException) {

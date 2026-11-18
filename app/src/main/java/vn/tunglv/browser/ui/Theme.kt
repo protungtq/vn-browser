@@ -1,5 +1,6 @@
 package vn.tunglv.browser.ui
 
+import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -7,8 +8,11 @@ import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
 
 /** Màu đỏ chủ đạo của VN Browser (cùng màu nền icon app). */
 val VnRed = Color(0xFFDC2626)
@@ -81,6 +85,16 @@ fun VnBrowserTheme(themeMode: String, content: @Composable () -> Unit) {
         "light" -> false
         "dark" -> true
         else -> isSystemInDarkTheme()
+    }
+    val view = LocalView.current
+    val activity = view.context as? Activity
+    if (activity != null && !view.isInEditMode) {
+        SideEffect {
+            WindowCompat.getInsetsController(activity.window, view).apply {
+                isAppearanceLightStatusBars = !darkTheme
+                isAppearanceLightNavigationBars = !darkTheme
+            }
+        }
     }
     MaterialTheme(
         colorScheme = if (darkTheme) VnDarkScheme else VnLightScheme,

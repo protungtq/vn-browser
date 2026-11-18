@@ -71,9 +71,14 @@ class DownloadService : Service() {
                 } else {
                     val option = VideoFormatOption(formatSpec!!, label, null, isAudio, directUrl)
                     val cookieFile = MediaDownload.writeCookieFile(this@DownloadService, url, cookies)
-                    MediaDownload.download(url, option, cookieFile) { progress, eta ->
-                        DownloadState.update(progress, eta)
-                        maybeUpdateNotification(title, progress)
+                    try {
+                        MediaDownload.download(url, option, cookieFile) { progress, eta ->
+                            DownloadState.update(progress, eta)
+                            maybeUpdateNotification(title, progress)
+                        }
+                    } finally {
+                        // Xóa file cookie tạm ngay sau lượt tải, khỏi nằm lại trong máy.
+                        MediaDownload.deleteCookieFile(this@DownloadService)
                     }
                 }
                 val done = "Đã tải xong: $title"
