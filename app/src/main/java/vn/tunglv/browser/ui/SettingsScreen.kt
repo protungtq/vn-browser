@@ -121,6 +121,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             } else {
                 "Đã khôi phục: ${result.bookmarksAdded} dấu trang, " +
                     "${result.historyAdded} mục lịch sử, " +
+                    "${result.shortcutsAdded} trang truy cập nhanh, " +
                     "${result.tabsRestored} tab đã lưu (mở lại khi mở app lần sau)."
             }
         } catch (e: Exception) {

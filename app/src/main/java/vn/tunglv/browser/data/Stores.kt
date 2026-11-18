@@ -30,6 +30,29 @@ data class Bookmark(
     val time: Long,
 )
 
+/** Một trang trong lưới truy cập nhanh ở trang chủ. */
+data class Shortcut(
+    val id: Long,
+    val title: String,
+    val url: String,
+)
+
+/** 12 trang mặc định khi người dùng chưa sửa gì. */
+val DEFAULT_SHORTCUTS = listOf(
+    Shortcut(1L, "Google", "https://www.google.com"),
+    Shortcut(2L, "YouTube", "https://m.youtube.com"),
+    Shortcut(3L, "Facebook", "https://m.facebook.com"),
+    Shortcut(4L, "TikTok", "https://www.tiktok.com"),
+    Shortcut(5L, "Zalo", "https://zalo.me"),
+    Shortcut(6L, "Instagram", "https://www.instagram.com"),
+    Shortcut(7L, "Shopee", "https://shopee.vn"),
+    Shortcut(8L, "Lazada", "https://www.lazada.vn"),
+    Shortcut(9L, "VnExpress", "https://vnexpress.net"),
+    Shortcut(10L, "Tuổi Trẻ", "https://tuoitre.vn"),
+    Shortcut(11L, "Wikipedia", "https://vi.wikipedia.org"),
+    Shortcut(12L, "Gmail", "https://mail.google.com"),
+)
+
 /** Tab đã lưu để mở lại khi mở app lần sau. */
 data class SavedTab(
     val id: Long,
@@ -56,12 +79,118 @@ fun searchEngineById(id: String): SearchEngine {
     return SEARCH_ENGINES.firstOrNull { it.id == id } ?: SEARCH_ENGINES[0]
 }
 
+/** Trang truy cập nhanh ở trang chủ, lưu thành file JSON trong bộ nhớ riêng của app. */
+object ShortcutStore {
+
+    private const val FILE_NAME = "shortcuts.json"
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    private val _shortcuts = MutableStateFlow<List<Shortcut>>(DEFAULT_SHORTCUTS)
+    val shortcuts: StateFlow<List<Shortcut>> = _shortcuts.asStateFlow()
+
+    @Volatile
+    private var loaded = false
+
+    private lateinit var appContext: Context
+
+    fun init(context: Context) {
+        appContext = context.applicationContext
+        scope.launch {
+            readFile(appContext)?.let { _shortcuts.value = it }
+            loaded = true
+        }
+    }
+
+    /** Thêm trang mới, bỏ qua khi địa chỉ đã có trong lưới. */
+    fun add(title: String, url: String) {
+        val cleanUrl = url.trim()
+        if (cleanUrl.isBlank()) return
+        if (_shortcuts.value.any { it.url == cleanUrl }) return
+        val cleanTitle = title.trim().ifBlank { cleanUrl }
+        _shortcuts.value = _shortcuts.value + Shortcut(newId(), cleanTitle, cleanUrl)
+        saveAsync()
+    }
+
+    fun remove(id: Long) {
+        _shortcuts.update { list -> list.filter { it.id != id } }
+        saveAsync()
+    }
+
+    /** Về lại 12 trang mặc định. */
+    fun reset() {
+        _shortcuts.value = DEFAULT_SHORTCUTS
+        saveAsync()
+    }
+
+    /** Gộp trang từ file sao lưu, bỏ địa chỉ đã có. Trả về số trang thêm mới. */
+    fun merge(imported: List<Shortcut>): Int {
+        val current = _shortcuts.value
+        val knownUrls = current.map { it.url }.toSet()
+        val fresh = imported.filter { it.url !in knownUrls }
+        if (fresh.isEmpty()) return 0
+        _shortcuts.value = current + fresh
+        saveAsync()
+        return fresh.size
+    }
+
+    internal fun snapshot(): List<Shortcut> = _shortcuts.value
+
+    private fun saveAsync() {
+        if (!loaded) return
+        val snapshot = _shortcuts.value
+        scope.launch { writeFile(appContext, snapshot) }
+    }
+
+    /** Null khi chưa có file (dùng mặc định), danh sách rỗng khi người dùng đã xóa hết. */
+    private fun readFile(context: Context): List<Shortcut>? {
+        return try {
+            val file = File(context.filesDir, FILE_NAME)
+            if (!file.exists()) return null
+            val array = JSONObject(file.readText(Charsets.UTF_8)).optJSONArray("shortcuts")
+                ?: return null
+            (0 until array.length()).mapNotNull { i ->
+                val item = array.optJSONObject(i) ?: return@mapNotNull null
+                Shortcut(
+                    id = item.optLong("id", 0L),
+                    title = item.optString("title", ""),
+                    url = item.optString("url", ""),
+                ).takeIf { it.url.isNotBlank() }
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun writeFile(context: Context, items: List<Shortcut>) {
+        try {
+            val array = JSONArray()
+            for (item in items) {
+                array.put(
+                    JSONObject()
+                        .put("id", item.id)
+                        .put("title", item.title)
+                        .put("url", item.url),
+                )
+            }
+            File(context.filesDir, FILE_NAME)
+                .writeText(JSONObject().put("shortcuts", array).toString(), Charsets.UTF_8)
+        } catch (_: Exception) {
+            // Ghi thất bại thì lưới vẫn còn trong bộ nhớ, lần sau ghi lại.
+        }
+    }
+}
+
 /** Cài đặt của app, lưu trong SharedPreferences. */
 data class BrowserSettings(
     val adBlockEnabled: Boolean = true,
     val searchEngineId: String = "google",
     /** Giao diện: "system" theo máy, "light" sáng, "dark" tối. */
     val themeMode: String = "system",
+    /** Cách lấy khu vực cho khối thời tiết: "auto" dùng vị trí máy, "manual" chọn tỉnh/thành. */
+    val weatherLocationMode: String = "auto",
+    /** Id tỉnh/thành đã chọn khi weatherLocationMode là "manual", "" khi chưa chọn. */
+    val weatherProvinceId: String = "",
 )
 
 private const val MAX_HISTORY_ENTRIES = 500
@@ -301,6 +430,8 @@ object SettingsStore {
     private const val KEY_AD_BLOCK = "ad_block_enabled"
     private const val KEY_SEARCH_ENGINE = "search_engine_id"
     private const val KEY_THEME_MODE = "theme_mode"
+    private const val KEY_WEATHER_LOCATION_MODE = "weather_location_mode"
+    private const val KEY_WEATHER_PROVINCE_ID = "weather_province_id"
 
     private val _settings = MutableStateFlow(BrowserSettings())
     val settings: StateFlow<BrowserSettings> = _settings.asStateFlow()
@@ -314,6 +445,8 @@ object SettingsStore {
             adBlockEnabled = prefs.getBoolean(KEY_AD_BLOCK, true),
             searchEngineId = prefs.getString(KEY_SEARCH_ENGINE, "google") ?: "google",
             themeMode = prefs.getString(KEY_THEME_MODE, "system") ?: "system",
+            weatherLocationMode = prefs.getString(KEY_WEATHER_LOCATION_MODE, "auto") ?: "auto",
+            weatherProvinceId = prefs.getString(KEY_WEATHER_PROVINCE_ID, "") ?: "",
         )
         _settings.value = loaded
         FilterStore.adBlockingEnabled = loaded.adBlockEnabled
@@ -323,11 +456,15 @@ object SettingsStore {
         adBlockEnabled: Boolean? = null,
         searchEngineId: String? = null,
         themeMode: String? = null,
+        weatherLocationMode: String? = null,
+        weatherProvinceId: String? = null,
     ) {
         val next = _settings.value.copy(
             adBlockEnabled = adBlockEnabled ?: _settings.value.adBlockEnabled,
             searchEngineId = searchEngineId ?: _settings.value.searchEngineId,
             themeMode = themeMode ?: _settings.value.themeMode,
+            weatherLocationMode = weatherLocationMode ?: _settings.value.weatherLocationMode,
+            weatherProvinceId = weatherProvinceId ?: _settings.value.weatherProvinceId,
         )
         _settings.value = next
         FilterStore.adBlockingEnabled = next.adBlockEnabled
@@ -336,6 +473,8 @@ object SettingsStore {
             .putBoolean(KEY_AD_BLOCK, next.adBlockEnabled)
             .putString(KEY_SEARCH_ENGINE, next.searchEngineId)
             .putString(KEY_THEME_MODE, next.themeMode)
+            .putString(KEY_WEATHER_LOCATION_MODE, next.weatherLocationMode)
+            .putString(KEY_WEATHER_PROVINCE_ID, next.weatherProvinceId)
             .apply()
     }
 
@@ -404,6 +543,7 @@ data class ImportResult(
     val tabsRestored: Int,
     val settingsApplied: Boolean,
     val error: String? = null,
+    val shortcutsAdded: Int = 0,
 )
 
 /**
@@ -426,7 +566,9 @@ object BackupManager {
             JSONObject()
                 .put("adBlockEnabled", settings.adBlockEnabled)
                 .put("searchEngineId", settings.searchEngineId)
-                .put("themeMode", settings.themeMode),
+                .put("themeMode", settings.themeMode)
+                .put("weatherLocationMode", settings.weatherLocationMode)
+                .put("weatherProvinceId", settings.weatherProvinceId),
         )
         val marks = JSONArray()
         for (mark in BookmarkStore.snapshot()) {
@@ -439,6 +581,16 @@ object BackupManager {
             )
         }
         root.put("bookmarks", marks)
+        val shortcuts = JSONArray()
+        for (item in ShortcutStore.snapshot()) {
+            shortcuts.put(
+                JSONObject()
+                    .put("id", item.id)
+                    .put("title", item.title)
+                    .put("url", item.url),
+            )
+        }
+        root.put("shortcuts", shortcuts)
         val entries = JSONArray()
         for (entry in HistoryStore.snapshot()) {
             entries.put(
@@ -477,6 +629,8 @@ object BackupManager {
                     adBlockEnabled = settingsJson.optBoolean("adBlockEnabled", true),
                     searchEngineId = settingsJson.optString("searchEngineId", "google"),
                     themeMode = settingsJson.optString("themeMode", "system"),
+                    weatherLocationMode = settingsJson.optString("weatherLocationMode", "auto"),
+                    weatherProvinceId = settingsJson.optString("weatherProvinceId", ""),
                 )
                 settingsApplied = true
             }
@@ -494,7 +648,21 @@ object BackupManager {
                     )
                 }
             }
+            val importedShortcuts = mutableListOf<Shortcut>()
+            root.optJSONArray("shortcuts")?.let { array ->
+                for (i in 0 until array.length()) {
+                    val item = array.optJSONObject(i) ?: continue
+                    val url = item.optString("url", "")
+                    if (url.isBlank()) continue
+                    importedShortcuts += Shortcut(
+                        id = item.optLong("id", newId()),
+                        title = item.optString("title", url),
+                        url = url,
+                    )
+                }
+            }
             val bookmarksAdded = BookmarkStore.merge(marks)
+            val shortcutsAdded = ShortcutStore.merge(importedShortcuts)
             val entries = mutableListOf<HistoryEntry>()
             root.optJSONArray("history")?.let { array ->
                 for (i in 0 until array.length()) {
@@ -526,7 +694,7 @@ object BackupManager {
             if (tabs.isNotEmpty()) {
                 TabStore.saveTabs(context, tabs)
             }
-            ImportResult(bookmarksAdded, historyAdded, tabs.size, settingsApplied)
+            ImportResult(bookmarksAdded, historyAdded, tabs.size, settingsApplied, shortcutsAdded = shortcutsAdded)
         } catch (e: Exception) {
             ImportResult(0, 0, 0, false, "Không đọc được file sao lưu: ${e.message ?: "lỗi không rõ"}")
         }

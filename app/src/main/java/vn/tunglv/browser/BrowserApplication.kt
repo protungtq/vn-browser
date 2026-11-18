@@ -15,6 +15,7 @@ import kotlinx.coroutines.launch
 import vn.tunglv.browser.data.BookmarkStore
 import vn.tunglv.browser.data.HistoryStore
 import vn.tunglv.browser.data.SettingsStore
+import vn.tunglv.browser.data.ShortcutStore
 import vn.tunglv.browser.dl.MediaDownload
 import vn.tunglv.browser.filter.FilterStore
 
@@ -33,6 +34,7 @@ class BrowserApplication : Application() {
         HistoryStore.init(this)
         BookmarkStore.init(this)
         SettingsStore.init(this)
+        ShortcutStore.init(this)
         // Nạp bộ lọc quảng cáo đã lưu trong máy và kiểm tra bản mới, để
         // chặn được ngay từ lần duyệt web đầu tiên.
         FilterStore.loadCached(this)
