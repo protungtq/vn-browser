@@ -19,6 +19,8 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -98,8 +100,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.awaitPointerEventScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -327,14 +327,20 @@ private fun BrowserMainScreen(
                             // con trỏ đặt đúng vị trí đã chạm.
                             .pointerInput(addressFocused) {
                                 if (!addressFocused) {
-                                    awaitPointerEventScope {
-                                        while (true) {
+                                    awaitEachGesture {
+                                        // Chờ cú chạm đầu ở lượt Initial (tới
+                                        // trước ô nhập liệu) rồi nuốt nó, để
+                                        // ô không tự đặt con trỏ ở điểm chạm.
+                                        val down = awaitFirstDown(
+                                            requireUnconsumed = false,
+                                            pass = PointerEventPass.Initial,
+                                        )
+                                        down.consume()
+                                        addressFocusRequester.requestFocus()
+                                        // Chờ nhả tay rồi mới xét gesture sau.
+                                        do {
                                             val event = awaitPointerEvent(PointerEventPass.Initial)
-                                            if (event.type == PointerEventType.Press) {
-                                                event.changes.forEach { it.consume() }
-                                                addressFocusRequester.requestFocus()
-                                            }
-                                        }
+                                        } while (event.changes.any { it.pressed })
                                     }
                                 }
                             },
