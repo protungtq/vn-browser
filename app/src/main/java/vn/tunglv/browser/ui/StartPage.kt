@@ -3,6 +3,7 @@ package vn.tunglv.browser.ui
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -67,13 +68,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import coil.compose.AsyncImagePainter
-import coil.compose.rememberAsyncImagePainter
+import androidx.compose.ui.graphics.asImageBitmap
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.delay
 import vn.tunglv.browser.R
+import vn.tunglv.browser.data.FaviconCache
 import vn.tunglv.browser.data.PROVINCES
 import vn.tunglv.browser.data.Province
 import vn.tunglv.browser.data.SettingsStore
@@ -525,17 +526,19 @@ private fun AddTile(onClick: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
-/** Icon chính thức của trang, tải qua dịch vụ favicon; lỗi thì hiện chữ cái đầu. */
+/** Icon chính thức của trang, tải một lần rồi lưu file; chưa có thì hiện chữ cái đầu. */
 @Composable
 private fun FaviconOrLetter(shortcut: Shortcut) {
+    val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
-    val host = remember(shortcut.url) { Uri.parse(shortcut.url).host.orEmpty() }
-    val painter = rememberAsyncImagePainter(
-        "https://www.google.com/s2/favicons?domain=$host&sz=128",
-    )
-    if (host.isNotBlank() && painter.state is AsyncImagePainter.State.Success) {
+    var bitmap by remember(shortcut.url) { mutableStateOf<Bitmap?>(null) }
+    LaunchedEffect(shortcut.url) {
+        bitmap = FaviconCache.loadBitmap(context, shortcut.url)
+    }
+    val icon = bitmap
+    if (icon != null) {
         Image(
-            painter = painter,
+            bitmap = icon.asImageBitmap(),
             contentDescription = null,
             modifier = Modifier.size(32.dp),
             contentScale = ContentScale.Fit,
