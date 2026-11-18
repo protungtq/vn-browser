@@ -91,10 +91,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.awaitPointerEventScope
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -227,6 +233,7 @@ private fun BrowserMainScreen(
 
     var addressText by remember { mutableStateOf(TextFieldValue()) }
     var addressFocused by remember { mutableStateOf(false) }
+    val addressFocusRequester = remember { FocusRequester() }
     var menuExpanded by remember { mutableStateOf(false) }
     var downloadSheet by remember { mutableStateOf<Pair<String, String?>?>(null) }
 
@@ -281,6 +288,7 @@ private fun BrowserMainScreen(
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
             keyboardActions = KeyboardActions(onGo = { goTo(addressText.text) }),
             modifier = modifier
+                .focusRequester(addressFocusRequester)
                 .onFocusChanged {
                     if (it.isFocused && !addressFocused && addressText.text.isNotEmpty()) {
                         addressText = addressText.copy(selection = TextRange(0, addressText.text.length))
@@ -308,7 +316,29 @@ private fun BrowserMainScreen(
                         tint = if (addressFocused) colors.primary else colors.onSurfaceVariant,
                     )
                     Spacer(Modifier.width(8.dp))
-                    Box(Modifier.weight(1f).padding(vertical = 8.dp)) {
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .padding(vertical = 8.dp)
+                            // Chạm lần đầu khi ô chưa có focus: chặn để ô
+                            // không tự đặt con trỏ ở điểm chạm, mà tự xin
+                            // focus để chọn tất cả URL (xem onFocusChanged).
+                            // Chạm lần sau (đã có focus) thì để mặc định,
+                            // con trỏ đặt đúng vị trí đã chạm.
+                            .pointerInput(addressFocused) {
+                                if (!addressFocused) {
+                                    awaitPointerEventScope {
+                                        while (true) {
+                                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                                            if (event.type == PointerEventType.Press) {
+                                                event.changes.forEach { it.consume() }
+                                                addressFocusRequester.requestFocus()
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                    ) {
                         if (addressText.text.isEmpty()) {
                             Text(
                                 if (tabIsStartPage) "Tìm với ${engine.name}" else "Tìm kiếm hoặc nhập địa chỉ",
