@@ -246,6 +246,8 @@ internal fun StartPage(
                     )
                     if (editing) {
                         TextButton(onClick = { editing = false }) { Text("Xong") }
+                    } else {
+                        TextButton(onClick = { editing = true }) { Text("Sửa") }
                     }
                 }
                 Spacer(Modifier.height(8.dp))
@@ -272,6 +274,17 @@ internal fun StartPage(
                                 )
                             }
                         }
+                    }
+                }
+                if (!editing && shortcuts.isEmpty()) {
+                    Text(
+                        "Chưa có trang nào. Bấm nút dưới đây để lấy lại 12 trang mặc định.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    TextButton(onClick = { ShortcutStore.reset() }) {
+                        Text("Khôi phục 12 trang mặc định")
                     }
                 }
                 if (editing) {
