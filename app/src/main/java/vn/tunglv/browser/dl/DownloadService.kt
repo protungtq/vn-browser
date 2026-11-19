@@ -72,7 +72,7 @@ class DownloadService : Service() {
                     val option = VideoFormatOption(formatSpec!!, label, null, isAudio, directUrl)
                     val cookieFile = MediaDownload.writeCookieFile(this@DownloadService, url, cookies)
                     try {
-                        MediaDownload.download(url, option, cookieFile) { progress, eta ->
+                        MediaDownload.download(this@DownloadService, url, option, cookieFile) { progress, eta ->
                             DownloadState.update(progress, eta)
                             maybeUpdateNotification(title, progress)
                         }
